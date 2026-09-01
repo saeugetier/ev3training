@@ -128,7 +128,7 @@ visibly hit the ball/goal geometry in the viewer.
 ### 2. Train
 
 ```bash
-Training training daily can you sort of relationships in the Flock to reset currents okay, I can golab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --logger wandb
+uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --logger wandb
 ```
 
 - **`--env.scene.num-envs`**: start at a few hundred if you're unsure your
