@@ -5,8 +5,8 @@ description = "RoboCup dribble-and-kick policy training task for mjlab, targetin
 requires-python = ">=3.10"
 dependencies = [
   "mjlab",
-  "torch",
-  "torchvision",
+  "torch ==2.13.0",
+  "torchvision ==0.28.0",
 ]
 
 [tool.uv.sources]
