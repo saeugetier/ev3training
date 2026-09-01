@@ -1,4 +1,4 @@
-"""Static MJCF for the ball and a simple RoboCup field with goal markers.
+"""Static MJCF for the ball and a bounded RoboCup field with goal markers.
 
 Field/goal dimensions match the constants in mdp/rewards.py -- keep them
 in sync if you change either file.
@@ -13,6 +13,8 @@ FIELD_HALF_LENGTH_M = 2.2
 FIELD_HALF_WIDTH_M = 1.5
 GOAL_HALF_WIDTH_M = 0.35
 GOAL_POS_X = 2.0
+WALL_THICKNESS_M = 0.03
+WALL_HEIGHT_M = 0.12
 
 
 def build_ball_mjcf() -> str:
@@ -38,6 +40,22 @@ def build_field_mjcf() -> str:
     <geom name="ground" type="plane"
           size="{FIELD_HALF_LENGTH_M} {FIELD_HALF_WIDTH_M} 0.01"
           rgba="0.05 0.4 0.05 1" friction="0.9 0.01 0.01"/>
+        <geom name="wall_positive_x" type="box"
+          pos="{FIELD_HALF_LENGTH_M} 0 {WALL_HEIGHT_M / 2.0}"
+          size="{WALL_THICKNESS_M / 2.0} {FIELD_HALF_WIDTH_M} {WALL_HEIGHT_M / 2.0}"
+          rgba="0.85 0.85 0.85 1" friction="0.9 0.01 0.01"/>
+        <geom name="wall_negative_x" type="box"
+          pos="{-FIELD_HALF_LENGTH_M} 0 {WALL_HEIGHT_M / 2.0}"
+          size="{WALL_THICKNESS_M / 2.0} {FIELD_HALF_WIDTH_M} {WALL_HEIGHT_M / 2.0}"
+          rgba="0.85 0.85 0.85 1" friction="0.9 0.01 0.01"/>
+        <geom name="wall_positive_y" type="box"
+          pos="0 {FIELD_HALF_WIDTH_M} {WALL_HEIGHT_M / 2.0}"
+          size="{FIELD_HALF_LENGTH_M} {WALL_THICKNESS_M / 2.0} {WALL_HEIGHT_M / 2.0}"
+          rgba="0.85 0.85 0.85 1" friction="0.9 0.01 0.01"/>
+        <geom name="wall_negative_y" type="box"
+          pos="0 {-FIELD_HALF_WIDTH_M} {WALL_HEIGHT_M / 2.0}"
+          size="{FIELD_HALF_LENGTH_M} {WALL_THICKNESS_M / 2.0} {WALL_HEIGHT_M / 2.0}"
+          rgba="0.85 0.85 0.85 1" friction="0.9 0.01 0.01"/>
     <geom name="goal_post_top" type="box"
           pos="{GOAL_POS_X} {GOAL_HALF_WIDTH_M} 0.05"
           size="0.03 0.03 0.1" rgba="1 1 1 1"/>
