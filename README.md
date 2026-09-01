@@ -106,9 +106,6 @@ qemu-arm-static target/armv5te-unknown-linux-musleabi/release/policy_bench
   `mjlab_robocup` installed as an editable package (`uv pip install -e
   sim/`) so the `Mjlab-RoboCup-Kick-v0` task id is registered (see
   [`sim/mjlab_robocup/__init__.py`](sim/mjlab_robocup/__init__.py)).
-- Optional but recommended: a [Weights & Biases](https://wandb.ai)
-  account for run tracking (`--logger wandb`); mjlab's `rl` package wraps
-  `rsl_rl`'s `WandbLogWriter`.
 
 ### 1. Sanity-check the task before spending GPU time
 
@@ -128,7 +125,7 @@ visibly hit the ball/goal geometry in the viewer.
 ### 2. Train
 
 ```bash
-uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --logger wandb
+uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --agent.logger tensorboard
 ```
 
 - **`--env.scene.num-envs`**: start at a few hundred if you're unsure your
@@ -145,11 +142,29 @@ uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --logger wandb
   them, since the deployed firmware hard-codes those dimensions.
 - Checkpoints and logs are written under mjlab's run directory (printed at
   the start of training); `--experiment-name` in the PPO cfg
-  (`ev3_robocup_kick`) groups runs together in wandb.
+  (`ev3_robocup_kick`) groups local runs together.
 
-### 3. Monitor training
+### 3. Train and monitor locally with TensorBoard
 
-Track these signals (in wandb/tensorboard) specifically for this task:
+The PPO configuration uses TensorBoard by default. Start training with the
+local logger explicitly selected, then run TensorBoard in a second terminal:
+
+```bash
+# Terminal 1: train and write event files under logs/rsl_rl/ev3_robocup_kick/
+uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --agent.logger tensorboard
+
+# Terminal 2: from sim/, serve all timestamped local runs
+uv run tensorboard --logdir logs/rsl_rl/ev3_robocup_kick --port 6006
+```
+
+Open [http://localhost:6006](http://localhost:6006) in a browser. TensorBoard
+detects new metrics while training runs; use its run selector to compare
+timestamped runs. Pass `--log-root path/to/logs` to `train` and use the
+matching path with `tensorboard --logdir` to store logs elsewhere.
+
+### 4. Monitor training
+
+Track these TensorBoard signals specifically for this task:
 
 - **Per-reward-term curves** (`robot_ball_approach`, `ball_goal_progress`,
   `goal_scored`, `action_rate_l2`, `wheel_energy_l2` — see
@@ -169,7 +184,7 @@ Track these signals (in wandb/tensorboard) specifically for this task:
   usually means `init_noise_std` is too low or the reward is too sparse
   this early in training.
 
-### 4. Iterate on the task, not just the network
+### 5. Iterate on the task, not just the network
 
 Most of the "training difficulty" in a from-scratch RoboCup task is reward
 and curriculum design, not network size. Cheap things to try before
@@ -181,18 +196,30 @@ retraining from scratch:
 - Add domain randomization for sensor noise/action latency early rather
   than late — a policy trained only in a noise-free sim tends to fail
   sim2real even if it plays perfectly in the viewer.
-- Use `uv run play <task-id> --wandb-run-path <run>` regularly during
-  training to *watch* the policy, not just read metrics — visually
-  obvious failure modes (spinning in place, freezing near the ball) are
-  often fixed with one reward term, not a network change.
+- Evaluate local checkpoints regularly (see below) to *watch* the policy,
+  not just read metrics. Visually obvious failure modes (spinning in place,
+  freezing near the ball) are often fixed with one reward term, not a
+  network change.
 
-### 5. Evaluate a trained checkpoint
+### 6. Evaluate a trained checkpoint
+
+TensorBoard records metrics only; the actual trained policy is the
+`model_<iteration>.pt` checkpoint saved alongside the event files. With the
+default configuration, checkpoints are written every 100 iterations and at
+the end of training under
+`logs/rsl_rl/ev3_robocup_kick/<timestamped-run>/`.
 
 ```bash
-uv run play Mjlab-RoboCup-Kick-v0 --wandb-run-path your-org/mjlab/run-id
+# Replace the timestamp and iteration with a local run shown in TensorBoard.
+uv run play Mjlab-RoboCup-Kick-v0 \
+  --checkpoint-file logs/rsl_rl/ev3_robocup_kick/2026-09-01_12-00-00/model_6000.pt
 ```
 
-### 6. Record a rollout for quantization calibration
+The MuJoCo viewer opens with the local trained policy. No Weights & Biases
+account or network access is required. To evaluate a checkpoint from a custom
+log root, pass its full path to `--checkpoint-file`.
+
+### 7. Record a rollout for quantization calibration
 
 The Q15 export needs a recorded sequence of real actor observations to
 calibrate activation ranges (see `docs/NEURAL_NETWORK.md` → Quantization
@@ -212,7 +239,7 @@ See [`tools/quantize_export/record_rollout.py`](tools/quantize_export/record_rol
 noted in `PLAN_SUMMARY.md`, since it drives the real mjlab env rather than
 the pure-Python reference model.
 
-### 7. Quantize and export the trained weights to Q15 fixed point
+### 8. Quantize and export the trained weights to Q15 fixed point
 
 ```bash
 python -m tools.quantize_export.cli \
@@ -227,7 +254,7 @@ the real trained weights. See
 [`tools/quantize_export/README.md`](tools/quantize_export/README.md)
 for details of the calibration/export pipeline.
 
-### 8. Validate before flashing hardware
+### 9. Validate before flashing hardware
 
 Compare the quantized network's actions against the float policy on
 held-out rollout data (see `PLAN_SUMMARY.md` → Phase E) — check the
