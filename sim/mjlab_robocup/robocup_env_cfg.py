@@ -120,6 +120,9 @@ def make_robocup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         "goal_scored": RewardTermCfg(func=mdp.goal_scored_bonus, weight=50.0),
         "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.05),
         "wheel_energy_l2": RewardTermCfg(func=mdp.wheel_energy_l2, weight=-0.01),
+        "robot_wall_proximity": RewardTermCfg(
+            func=mdp.robot_wall_proximity, weight=-1.0
+        ),
     }
 
     terminations = {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 
 from mjlab.envs import ManagerBasedRlEnv
+from mjlab_robocup.assets.field_asset import ROBOT_WALL_CLEARANCE_M
 
 # Field/goal layout constants (meters), must match the scene MJCF/config.
 GOAL_POS_XY = (2.0, 0.0)
@@ -58,3 +59,14 @@ def wheel_energy_l2(env: ManagerBasedRlEnv) -> torch.Tensor:
     """Penalize large commanded wheel speeds (encourages efficient motion)."""
     action = env.action_manager.action
     return torch.sum(action[:, :2] ** 2, dim=-1)
+
+
+def robot_wall_proximity(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Penalize entering the wall-clearance zone without ending the episode."""
+    robot_xy = _root_pos_xy(env, "robot")
+    distance_to_wall = torch.minimum(
+        FIELD_HALF_LENGTH_M - torch.abs(robot_xy[:, 0]),
+        FIELD_HALF_WIDTH_M - torch.abs(robot_xy[:, 1]),
+    )
+    proximity = (ROBOT_WALL_CLEARANCE_M - distance_to_wall).clamp_min(0.0)
+    return (proximity / ROBOT_WALL_CLEARANCE_M) ** 2
