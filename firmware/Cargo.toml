@@ -1,0 +1,34 @@
+[package]
+name = "ev3-robocup-firmware"
+version = "0.1.0"
+edition = "2021"
+description = "EV3 RoboCup dribble-and-kick policy inference (Q15/embedded-nn), driven by ev3dev-lang-rust."
+
+[[bin]]
+name = "ev3-robocup"
+path = "src/main.rs"
+
+[[bin]]
+name = "policy_bench"
+path = "src/bin/policy_bench.rs"
+
+[lib]
+name = "ev3_robocup_firmware"
+path = "src/lib.rs"
+
+[dependencies]
+ev3dev-lang-rust = "0.16"
+embedded-nn = "0.2"
+# Raw Linux I2C access for the VL53L8CX, which ev3dev-lang-rust does not
+# support as a built-in sensor type (custom I2C device).
+i2cdev = "0.6"
+
+[profile.release]
+# No FPU on ARMv5TEJ: keep codegen conservative, avoid relying on
+# aggressive float-heavy vectorization the target can't execute natively.
+opt-level = 3
+lto = true
+panic = "abort"
+
+[dev-dependencies]
+# Host-side unit tests (Phase E.2) run on the dev machine, not on-target.
