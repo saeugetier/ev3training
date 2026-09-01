@@ -19,7 +19,7 @@ torchvision = [
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu130"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [project.entry-points."mjlab.tasks"]
