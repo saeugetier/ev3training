@@ -11,8 +11,8 @@ pub const LAST_ACTION_DIM: usize = 3;
 
 pub const INPUT_DIM: usize =
     DEPTH_DIM + YAW_SINCOS_DIM + YAW_RATE_DIM + WHEEL_DELTAS_DIM + LAST_ACTION_DIM;
-pub const LSTM_HIDDEN_DIM: usize = 32;
-pub const DECODER_DIM: usize = 32;
+pub const LSTM_HIDDEN_DIM: usize = 96;
+pub const DECODER_DIM: usize = 96;
 pub const OUTPUT_DIM: usize = 3;
 
 /// Control loop period: must match `DECIMATION * PHYSICS_TIMESTEP_S` in

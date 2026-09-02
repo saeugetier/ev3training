@@ -15,9 +15,9 @@ from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 # Must match tools/quantize_export network spec (single LSTM layer, hidden
 # size chosen small enough to run in real time on an ARMv5TEJ CPU w/o FPU).
-LSTM_HIDDEN_SIZE = 32
+LSTM_HIDDEN_SIZE = 96
 # Decoder width after the LSTM (= tools.quantize_export.network_spec.DECODER_DIM).
-DECODER_HIDDEN_SIZE = 32
+DECODER_HIDDEN_SIZE = 96
 
 
 def RoboCupPpoRunnerCfg() -> RslRlOnPolicyRunnerCfg:

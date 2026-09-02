@@ -24,7 +24,7 @@ flowchart LR
     obs -->|Wx| GF["gate f"]
     obs -->|Wx| GG["gate g"]
     obs -->|Wx| GO["gate o"]
-    H["h (32)"] -->|Wh| GI
+    H["h (96)"] -->|Wh| GI
     H -->|Wh| GF
     H -->|Wh| GG
     H -->|Wh| GO
@@ -32,7 +32,7 @@ flowchart LR
     GF -->|sigmoid| F["f"]
     GG -->|tanh| G["g"]
     GO -->|sigmoid| O["o"]
-    C["c (32)"] --> FC_MUL["f * c"]
+    C["c (96)"] --> FC_MUL["f * c"]
     F --> FC_MUL
     I --> IG_MUL["i * g"]
     G --> IG_MUL
@@ -41,8 +41,8 @@ flowchart LR
     CNEW -->|tanh| TC["tanh(c_new)"]
     O --> HNEW["h_new = o * tanh(c_new)"]
     TC --> HNEW
-    HNEW -->|Dense 32->32, tanh| DEC["decoded (32)"]
-    DEC -->|Dense 32->3, tanh| ACT["action (3)"]
+    HNEW -->|Dense 96->96, tanh| DEC["decoded (96)"]
+    DEC -->|Dense 96->3, tanh| ACT["action (3)"]
 ```
 
 `c_new` and `h_new` are written back into the persistent state and reused
@@ -76,18 +76,22 @@ action), so training needs no custom actor-critic class.
 
 | Layer | Shape | Parameters |
 |---|---|---|
-| Gate i: `Wx` (obs→hidden, w/ bias) | (32, 72) + (32,) | 2,336 |
-| Gate i: `Wh` (hidden→hidden, no bias) | (32, 32) | 1,024 |
-| Gate f: `Wx` + `Wh` | same shapes | 3,360 |
-| Gate g: `Wx` + `Wh` | same shapes | 3,360 |
-| Gate o: `Wx` + `Wh` | same shapes | 3,360 |
-| Decoder (hidden→32, w/ bias) | (32, 32) + (32,) | 1,056 |
-| Action head (32→3, w/ bias) | (3, 32) + (3,) | 99 |
-| **Total** | | **14,595** |
+| Gate i: `Wx` (obs→hidden, w/ bias) | (96, 72) + (96,) | 7,008 |
+| Gate i: `Wh` (hidden→hidden, no bias) | (96, 96) | 9,216 |
+| Gate f: `Wx` + `Wh` | same shapes | 16,224 |
+| Gate g: `Wx` + `Wh` | same shapes | 16,224 |
+| Gate o: `Wx` + `Wh` | same shapes | 16,224 |
+| Decoder (hidden→96, w/ bias) | (96, 96) + (96,) | 9,312 |
+| Action head (96→3, w/ bias) | (3, 96) + (3,) | 291 |
+| **Total** | | **74,499** |
 
-At int8 weights + int64 bias this is roughly **14.6 KB of flash** for
+At int8 weights + int64 bias this is roughly **74.5 KB of flash** for
 weights plus a few KB for the (much smaller number of) bias values — well
-within an EV3's storage budget.
+within an EV3's storage budget. The hidden size was increased from an
+earlier 32-unit variant (14,595 parameters) to give the policy enough
+capacity to aim kicks at the goal rather than only approach the ball;
+re-run `policy_bench` after this change to confirm the larger network
+still fits the 50 Hz control budget.
 
 ### Why split `Wx`/`Wh` instead of concatenating `[obs, h]`?
 

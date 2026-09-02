@@ -91,6 +91,13 @@ def wheel_energy_l2(env: ManagerBasedRlEnv) -> torch.Tensor:
     return torch.sum(action[:, :2] ** 2, dim=-1)
 
 
+BALL_CONTROL_FORWARD_MAX_M = 0.20
+# Kicking is only rewarded/penalized based on how well the robot's heading
+# (which determines kick direction) is aimed at the goal center.
+GOAL_ALIGNMENT_MISUSE_COS = 0.7071  # >45 deg off-target counts as a bad kick.
+GOAL_ALIGNMENT_ON_TARGET_COS = 0.9397  # <20 deg off-target counts as aimed.
+
+
 def _ball_kicker_distance(env: ManagerBasedRlEnv) -> torch.Tensor:
     """Distance from the ball to the kicker arm tip, shape [num_envs]."""
     robot = env.scene["robot"]
@@ -101,15 +108,8 @@ def _ball_kicker_distance(env: ManagerBasedRlEnv) -> torch.Tensor:
     return torch.norm(ball_xy - kicker_xy, dim=-1)
 
 
-def kick_misuse_penalty(env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Penalize firing the kicker while the ball is out of contact range."""
-    kick_active = (env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD).float()
-    ball_out_of_range = (_ball_kicker_distance(env) > BALL_KICKER_CONTACT_DIST_M).float()
-    return kick_active * ball_out_of_range
-
-
-def ball_possession(env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Reward the ball being close and in front of the kicker."""
+def _ball_kicker_frame(env: ManagerBasedRlEnv) -> tuple[torch.Tensor, torch.Tensor]:
+    """Ball position relative to the kicker tip in the robot's forward/lateral frame."""
     robot = env.scene["robot"]
     heading = robot.data.heading_w
     forward_xy = torch.stack([torch.cos(heading), torch.sin(heading)], dim=-1)
@@ -121,8 +121,50 @@ def ball_possession(env: ManagerBasedRlEnv) -> torch.Tensor:
         ball_from_kicker[:, 0] * forward_xy[:, 1]
         - ball_from_kicker[:, 1] * forward_xy[:, 0]
     )
-    is_controlled = (forward_distance > 0.0) & (forward_distance < 0.20)
+    return forward_distance, lateral_distance
+
+
+def _goal_heading_alignment(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Cosine similarity between the robot's forward heading and the goal direction."""
+    robot = env.scene["robot"]
+    heading = robot.data.heading_w
+    forward_xy = torch.stack([torch.cos(heading), torch.sin(heading)], dim=-1)
+    goal = torch.tensor(GOAL_POS_XY, device=forward_xy.device)
+    to_goal = goal - _root_pos_xy(env, "robot")
+    to_goal_dir = to_goal / torch.norm(to_goal, dim=-1, keepdim=True).clamp_min(1e-6)
+    return torch.sum(forward_xy * to_goal_dir, dim=-1)
+
+
+def kick_misuse_penalty(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Penalize firing the kicker out of range or aimed away from the goal."""
+    kick_active = (env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD).float()
+    ball_out_of_range = _ball_kicker_distance(env) > BALL_KICKER_CONTACT_DIST_M
+    misaligned = _goal_heading_alignment(env) < GOAL_ALIGNMENT_MISUSE_COS
+    return kick_active * (ball_out_of_range | misaligned).float()
+
+
+def kick_on_target_bonus(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Bonus for kicking while the ball is in range and the robot is aimed at goal."""
+    kick_active = (env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD).float()
+    ball_in_range = (_ball_kicker_distance(env) <= BALL_KICKER_CONTACT_DIST_M).float()
+    aligned = (_goal_heading_alignment(env) >= GOAL_ALIGNMENT_ON_TARGET_COS).float()
+    return kick_active * ball_in_range * aligned
+
+
+def ball_possession(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Reward the ball being close and in front of the kicker."""
+    forward_distance, lateral_distance = _ball_kicker_frame(env)
+    is_controlled = (forward_distance > 0.0) & (forward_distance < BALL_CONTROL_FORWARD_MAX_M)
     return is_controlled.float() * torch.exp(-25.0 * lateral_distance.square())
+
+
+def dribble_goal_alignment(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Reward aiming the robot at the goal while the ball is under control."""
+    forward_distance, lateral_distance = _ball_kicker_frame(env)
+    del lateral_distance
+    is_controlled = (forward_distance > 0.0) & (forward_distance < BALL_CONTROL_FORWARD_MAX_M)
+    alignment = _goal_heading_alignment(env).clamp_min(0.0)
+    return is_controlled.float() * alignment.square()
 
 
 def robot_wall_proximity(env: ManagerBasedRlEnv) -> torch.Tensor:
