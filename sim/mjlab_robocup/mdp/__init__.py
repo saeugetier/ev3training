@@ -2,8 +2,8 @@ from mjlab_robocup.mdp.actions import RoboCupDriveAction, RoboCupDriveActionCfg
 from mjlab_robocup.mdp.observations import depth_scan, wheel_deltas, yaw_rate, yaw_sincos
 from mjlab_robocup.mdp.rewards import (
     action_rate_l2,
+    ball_possession,
     ball_goal_progress,
-    forward_velocity,
     goal_scored_bonus,
     kick_misuse_penalty,
     robot_ball_approach,
@@ -22,8 +22,8 @@ __all__ = [
     "yaw_rate",
     "yaw_sincos",
     "action_rate_l2",
+    "ball_possession",
     "ball_goal_progress",
-    "forward_velocity",
     "goal_scored_bonus",
     "kick_misuse_penalty",
     "robot_ball_approach",
