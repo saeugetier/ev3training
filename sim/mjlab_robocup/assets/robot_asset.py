@@ -105,8 +105,12 @@ def build_robocup_robot_mjcf() -> RobotAssetXml:
         <joint name="kicker_joint" type="hinge" axis="0 1 0"
                range="0 1.2" damping="0.05" springref="0" stiffness="0.2"/>
         <inertial pos="0.02 0 0" mass="0.03" diaginertia="1e-5 1e-5 1e-5"/>
+        <!-- contype=2/conaffinity=0: the kicker must only ever contact the
+             ball (see build_ball_mjcf's conaffinity), never the ground/walls
+             -- otherwise the arm drags on the floor and brakes the chassis
+             whenever a kick is held active. -->
         <geom name="kicker_geom" type="box" size="0.03 0.015 0.005"
-              rgba="0.8 0.1 0.1 1"/>
+              contype="2" conaffinity="0" rgba="0.8 0.1 0.1 1"/>
       </body>
 
       <!-- Larger drive wheels, with the axle forward of the chassis center. -->

@@ -118,6 +118,8 @@ def make_robocup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         ),
         "ball_goal_progress": RewardTermCfg(func=mdp.ball_goal_progress, weight=1.5),
         "goal_scored": RewardTermCfg(func=mdp.goal_scored_bonus, weight=50.0),
+        "forward_velocity": RewardTermCfg(func=mdp.forward_velocity, weight=1.0),
+        "kick_misuse": RewardTermCfg(func=mdp.kick_misuse_penalty, weight=-2.0),
         "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.05),
         "wheel_energy_l2": RewardTermCfg(func=mdp.wheel_energy_l2, weight=-0.01),
         "robot_wall_proximity": RewardTermCfg(

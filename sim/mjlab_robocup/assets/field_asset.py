@@ -26,8 +26,12 @@ def build_ball_mjcf() -> str:
       <freejoint name="ball_free"/>
       <inertial pos="0 0 0" mass="{BALL_MASS_KG}"
                 diaginertia="1e-5 1e-5 1e-5"/>
+      <!-- conaffinity=3 (bits 1+2): keeps default ground/wall contact (bit 1)
+           and additionally accepts contact from the kicker's contype=2
+           (see build_robocup_robot_mjcf's kicker_geom), which is otherwise
+           excluded from ground/wall collisions. -->
       <geom name="ball_geom" type="sphere" size="{BALL_RADIUS_M}"
-            friction="0.4 0.01 0.01" rgba="1 0.5 0 1"/>
+            conaffinity="3" friction="0.4 0.01 0.01" rgba="1 0.5 0 1"/>
     </body>
   </worldbody>
 </mujoco>
