@@ -17,7 +17,7 @@ from dataclasses import dataclass
 DEPTH_GRID_SIZE = 8  # 8x8 = 64 zones, matches VL53L8CX.
 DEPTH_FOV_DEG = 45.0  # VL53L8CX supports up to 45deg x 45deg FOV.
 DEPTH_MAX_RANGE_M = 4.0  # VL53L8CX max ranging distance (typical use case).
-DEPTH_MOUNT_HEIGHT_M = 0.05  # Height of sensor above chassis center.
+DEPTH_MOUNT_HEIGHT_M = 0.10  # Height above chassis center (0.135m above ground).
 
 WHEEL_RADIUS_M = 0.035
 WHEEL_SEPARATION_M = 0.15
@@ -36,13 +36,16 @@ def _depth_sensor_sites_and_sensors() -> tuple[str, str]:
     site_lines: list[str] = []
     sensor_lines: list[str] = []
     n = DEPTH_GRID_SIZE
+    # Row n - 1 is the upper row. Tilt the grid down so that row horizontal,
+    # leaving the lower rows to observe the ball immediately before the kicker.
+    mount_pitch = -half_fov * (1.0 - 1.0 / n)
     for row in range(n):
         for col in range(n):
             # Map grid cell -> (pitch, yaw) offset within the FOV, centered at 0.
             u = (col + 0.5) / n * 2.0 - 1.0  # [-1, 1]
             v = (row + 0.5) / n * 2.0 - 1.0
             yaw = u * half_fov
-            pitch = v * half_fov
+            pitch = v * half_fov + mount_pitch
             name = f"depth_zone_{row}_{col}"
             # A rangefinder measures along its local +z axis. Set that axis
             # directly to avoid Euler-angle composition collapsing the yaw

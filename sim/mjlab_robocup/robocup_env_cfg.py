@@ -131,6 +131,7 @@ def make_robocup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         "time_out": TerminationTermCfg(func=base_mdp.time_out, time_out=True),
         "goal_scored": TerminationTermCfg(func=mdp.goal_scored, time_out=True),
         "out_of_bounds": TerminationTermCfg(func=mdp.out_of_field_bounds),
+        "nan_detection": TerminationTermCfg(func=base_mdp.nan_detection),
     }
     events = {
         "reset_ball": EventTermCfg(func=mdp.reset_ball_randomly, mode="reset"),

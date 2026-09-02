@@ -128,6 +128,16 @@ visibly hit the ball/goal geometry in the viewer.
 uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 --agent.logger tensorboard
 ```
 
+To retain the last 100 physics states when an environment develops a NaN or
+Inf, enable mjlab's NaN Guard. It writes a diagnostic dump to
+`/tmp/mjlab/nan_dumps/`; the task resets only the affected environment through
+its `nan_detection` termination.
+
+```bash
+uv run train Mjlab-RoboCup-Kick-v0 --env.scene.num-envs 4096 \
+  --agent.logger tensorboard --enable-nan-guard true
+```
+
 - **`--env.scene.num-envs`**: start at a few hundred if you're unsure your
   GPU can fit 4096 parallel envs (depth-scan rangefinests, in particular,
   add per-env cost — 64 rays each). Scale up once you've confirmed the
