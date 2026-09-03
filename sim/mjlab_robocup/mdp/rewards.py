@@ -135,20 +135,47 @@ def _goal_heading_alignment(env: ManagerBasedRlEnv) -> torch.Tensor:
     return torch.sum(forward_xy * to_goal_dir, dim=-1)
 
 
-def kick_misuse_penalty(env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Penalize firing the kicker out of range or aimed away from the goal."""
-    kick_active = (env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD).float()
-    ball_out_of_range = _ball_kicker_distance(env) > BALL_KICKER_CONTACT_DIST_M
-    misaligned = _goal_heading_alignment(env) < GOAL_ALIGNMENT_MISUSE_COS
-    return kick_active * (ball_out_of_range | misaligned).float()
+class _kick_edge_reward:
+    """Reward a kick condition only on the rising edge of the kick trigger.
+
+    Without edge-detection, holding the kick action active rewards every
+    single tick it stays true, letting the policy farm reward by parking
+    next to the ball instead of ever advancing it toward the goal.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv) -> None:
+        del cfg
+        self._was_active = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def _condition(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        raise NotImplementedError
+
+    def __call__(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        kick_active = env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD
+        rising_edge = kick_active & ~self._was_active
+        self._was_active.copy_(kick_active)
+        return (rising_edge & self._condition(env)).float()
+
+    def reset(self, env_ids: torch.Tensor | slice) -> None:
+        self._was_active[env_ids] = False
 
 
-def kick_on_target_bonus(env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Bonus for kicking while the ball is in range and the robot is aimed at goal."""
-    kick_active = (env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD).float()
-    ball_in_range = (_ball_kicker_distance(env) <= BALL_KICKER_CONTACT_DIST_M).float()
-    aligned = (_goal_heading_alignment(env) >= GOAL_ALIGNMENT_ON_TARGET_COS).float()
-    return kick_active * ball_in_range * aligned
+class kick_misuse_penalty(_kick_edge_reward):
+    """Penalize starting a kick out of range or aimed away from the goal."""
+
+    def _condition(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        ball_out_of_range = _ball_kicker_distance(env) > BALL_KICKER_CONTACT_DIST_M
+        misaligned = _goal_heading_alignment(env) < GOAL_ALIGNMENT_MISUSE_COS
+        return ball_out_of_range | misaligned
+
+
+class kick_on_target_bonus(_kick_edge_reward):
+    """Bonus for starting a kick while the ball is in range and aimed at goal."""
+
+    def _condition(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        ball_in_range = _ball_kicker_distance(env) <= BALL_KICKER_CONTACT_DIST_M
+        aligned = _goal_heading_alignment(env) >= GOAL_ALIGNMENT_ON_TARGET_COS
+        return ball_in_range & aligned
 
 
 def ball_possession(env: ManagerBasedRlEnv) -> torch.Tensor:
