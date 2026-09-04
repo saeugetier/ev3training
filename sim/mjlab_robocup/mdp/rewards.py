@@ -17,9 +17,11 @@ FIELD_HALF_WIDTH_M = 1.5
 
 # Kicker geometry (chassis-forward offset to the arm tip), see
 # robot_asset.py's kicker_arm/kicker_geom placement.
-KICKER_REACH_M = 0.14
-KICK_CONTACT_MARGIN_M = 0.05
-BALL_KICKER_CONTACT_DIST_M = KICKER_REACH_M + BALL_RADIUS_M + KICK_CONTACT_MARGIN_M
+KICKER_REACH_M = 0.12
+KICK_CONTACT_MARGIN_M = 0.01
+# _ball_kicker_distance is measured from the kicker tip, so do not add the
+# tip's chassis offset again here.
+BALL_KICKER_CONTACT_DIST_M = BALL_RADIUS_M + KICK_CONTACT_MARGIN_M
 
 
 def _root_pos_xy(env: ManagerBasedRlEnv, entity_name: str) -> torch.Tensor:
@@ -169,13 +171,53 @@ class kick_misuse_penalty(_kick_edge_reward):
         return ball_out_of_range | misaligned
 
 
-class kick_on_target_bonus(_kick_edge_reward):
-    """Bonus for starting a kick while the ball is in range and aimed at goal."""
+class kick_on_target_bonus:
+    """Reward only a kick that is followed by measurable ball progress."""
 
-    def _condition(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+    CONFIRMATION_STEPS = 5
+    MIN_BALL_GOAL_PROGRESS_M = 0.005
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv) -> None:
+        del cfg
+        self._was_active = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        self._pending = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        self._age = torch.zeros(env.num_envs, dtype=torch.int64, device=env.device)
+        self._goal_distance_at_trigger = torch.full(
+            (env.num_envs,), float("nan"), device=env.device
+        )
+
+    def __call__(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        kick_active = env.action_manager.action[:, 2] > KICK_TRIGGER_THRESHOLD
+        rising_edge = kick_active & ~self._was_active
+        self._was_active.copy_(kick_active)
+
+        ball_xy = _root_pos_xy(env, "ball")
+        goal = torch.tensor(GOAL_POS_XY, device=ball_xy.device)
+        goal_distance = torch.norm(ball_xy - goal, dim=-1)
         ball_in_range = _ball_kicker_distance(env) <= BALL_KICKER_CONTACT_DIST_M
         aligned = _goal_heading_alignment(env) >= GOAL_ALIGNMENT_ON_TARGET_COS
-        return ball_in_range & aligned
+        valid_trigger = rising_edge & ball_in_range & aligned
+
+        self._pending |= valid_trigger
+        self._age = torch.where(self._pending, self._age + 1, self._age)
+        self._goal_distance_at_trigger = torch.where(
+            valid_trigger, goal_distance, self._goal_distance_at_trigger
+        )
+
+        confirmed = self._pending & (
+            self._goal_distance_at_trigger - goal_distance
+            >= self.MIN_BALL_GOAL_PROGRESS_M
+        )
+        expired = self._age >= self.CONFIRMATION_STEPS
+        self._pending &= ~confirmed & ~expired
+        self._age = torch.where(~self._pending, torch.zeros_like(self._age), self._age)
+        return confirmed.float()
+
+    def reset(self, env_ids: torch.Tensor | slice) -> None:
+        self._was_active[env_ids] = False
+        self._pending[env_ids] = False
+        self._age[env_ids] = 0
+        self._goal_distance_at_trigger[env_ids] = float("nan")
 
 
 def ball_possession(env: ManagerBasedRlEnv) -> torch.Tensor:

@@ -118,9 +118,9 @@ def make_robocup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         ),
         "ball_goal_progress": RewardTermCfg(func=mdp.ball_goal_progress, weight=8.0),
         "goal_scored": RewardTermCfg(func=mdp.goal_scored_bonus, weight=50.0),
-        "ball_possession": RewardTermCfg(func=mdp.ball_possession, weight=0.05),
+        "ball_possession": RewardTermCfg(func=mdp.ball_possession, weight=0.002),
         "dribble_goal_alignment": RewardTermCfg(
-            func=mdp.dribble_goal_alignment, weight=0.1
+            func=mdp.dribble_goal_alignment, weight=0.004
         ),
         "kick_misuse": RewardTermCfg(func=mdp.kick_misuse_penalty, weight=-2.0),
         "kick_on_target": RewardTermCfg(func=mdp.kick_on_target_bonus, weight=5.0),
