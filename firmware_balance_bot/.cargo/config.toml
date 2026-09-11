@@ -1,0 +1,9 @@
+# EV3 (ev3dev) runs Debian Linux on an ARMv5TEJ core with no VFP/FPU, so
+# the target uses the soft-float ABI. Cross-compiling from x86_64 requires
+# an appropriate linker (see ev3dev's cross-compilation guide) -- adjust
+# `linker` to your installed arm-linux-gnueabi toolchain path.
+[build]
+target = "armv5te-unknown-linux-musleabi"
+
+[target.armv5te-unknown-linux-musleabi]
+linker = "rust-lld"

@@ -1,0 +1,31 @@
+[package]
+name = "ev3-balance-bot-firmware"
+version = "0.1.0"
+edition = "2021"
+description = "EV3 balance-bot policy inference (Q15/embedded-nn), IR remote + gyro input, driven by ev3dev-lang-rust."
+
+[[bin]]
+name = "ev3-balance-bot"
+path = "src/main.rs"
+
+[[bin]]
+name = "policy_bench"
+path = "src/bin/policy_bench.rs"
+
+[lib]
+name = "ev3_balance_bot_firmware"
+path = "src/lib.rs"
+
+[dependencies]
+ev3dev-lang-rust = "0.16"
+embedded-nn = "0.2"
+
+[profile.release]
+# No FPU on ARMv5TEJ: keep codegen conservative, avoid relying on
+# aggressive float-heavy vectorization the target can't execute natively.
+opt-level = 3
+lto = true
+panic = "abort"
+
+[dev-dependencies]
+# Host-side unit tests run on the dev machine, not on-target.
