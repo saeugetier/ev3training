@@ -1,2 +1,3 @@
-firmware/target
+firmware_balance_bot/target
+firmware_robocup/target
 __pycache__/
