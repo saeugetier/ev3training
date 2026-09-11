@@ -1,0 +1,62 @@
+<mujoco model="balance_bot">
+  <compiler angle="radian" autolimits="true"/>
+
+  <default>
+    <default class="balance_bot">
+      <geom friction="1.0 0.02 0.001" condim="4"/>
+      <default class="wheel">
+        <!-- Damping models the DC motor back-EMF: 0.5 Nm stall torque / ~60 rad/s
+             no-load speed. Without it the wheels spin up without bound while
+             slipping on low-friction ground, which destabilizes the solver. -->
+        <joint type="hinge" axis="0 1 0" damping="0.008" armature="2e-4" frictionloss="1e-3"/>
+        <!-- Tyre friction is kept below the lowest randomized ground friction so
+             that MuJoCo's max() contact rule lets the ground value dominate. -->
+        <geom type="cylinder" size="0.05 0.015" quat="0.7071068 0.7071068 0 0"
+              rgba="0.15 0.15 0.15 1" friction="0.2 0.02 0.001"/>
+        <!-- Speed-controlled actuator; the action config limits the command to
+             the wheel speed range used by the training task. -->
+        <velocity ctrlrange="-12 12" kv="0.6"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="chassis" pos="0 0 0.05" childclass="balance_bot">
+      <freejoint name="root"/>
+      <site name="imu" pos="0 0 0.05" size="0.005" rgba="0 1 0 1"/>
+
+      <!-- Axle housing at wheel height. -->
+      <geom name="axle" type="box" size="0.03 0.06 0.015" pos="0 0 0"
+            mass="0.15" rgba="0.4 0.45 0.5 1"/>
+      <!-- Battery / electronics stack: the mass sits high above the axle, so
+           the robot is an inverted pendulum that must be actively balanced. -->
+      <geom name="body" type="box" size="0.035 0.05 0.06" pos="0 0 0.085"
+            mass="0.55" rgba="0.85 0.55 0.15 1"/>
+      <geom name="mast" type="capsule" fromto="0 0 0.015 0 0 0.085" size="0.012"
+            mass="0.05" rgba="0.6 0.6 0.65 1"/>
+
+      <body name="left_wheel_link" pos="0 0.075 0">
+        <joint name="left_wheel" class="wheel"/>
+        <geom name="left_wheel" class="wheel" mass="0.09"/>
+      </body>
+      <body name="right_wheel_link" pos="0 -0.075 0">
+        <joint name="right_wheel" class="wheel"/>
+        <geom name="right_wheel" class="wheel" mass="0.09"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <velocity name="left_wheel" joint="left_wheel" class="wheel"/>
+    <velocity name="right_wheel" joint="right_wheel" class="wheel"/>
+  </actuator>
+
+  <!-- Onboard sensor suite of the real robot. The policy only consumes
+       quantities that can be derived from these. -->
+  <sensor>
+    <framequat name="imu_quat" objtype="site" objname="imu"/>
+    <gyro name="imu_gyro" site="imu"/>
+    <jointpos name="left_wheel_pos" joint="left_wheel"/>
+    <jointpos name="right_wheel_pos" joint="right_wheel"/>
+  </sensor>
+</mujoco>
