@@ -1,0 +1,89 @@
+"""CLI: checkpoint + rollout -> calibrated Q15 Rust weight file for the
+balance-bot policy.
+
+Usage:
+    python -m tools.quantize_export_balance_bot.cli \\
+        --checkpoint path/to/rsl_rl_checkpoint.pt \\
+        --rollout path/to/rollout_obs.npy \\
+        --out path/to/policy_weights.rs
+
+`rollout_obs.npy` is a `[T, INPUT_DIM]` float32 array of raw (pre-
+normalization) actor observations recorded from `uv run play` on the trained
+checkpoint (see `record_rollout.py`). `checkpoint` is adapted into this
+repo's `BalanceBotPolicyRef` via
+`reference_model.load_from_rsl_rl_state_dict` -- see that function's
+docstring for the assumed rsl_rl `ActorCritic` layout.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from tools.quantize_export_balance_bot.calibrate import calibrate
+from tools.quantize_export_balance_bot.export_rust import export_policy_weights_rs
+from tools.quantize_export_balance_bot.reference_model import (
+  BalanceBotPolicyRef,
+  fold_input_normalization,
+  load_from_rsl_rl_state_dict,
+)
+
+# Known rsl_rl checkpoint key spellings for the obs normalizer's running
+# mean/var; try each in order since this varies across rsl_rl versions.
+_NORMALIZER_KEY_CANDIDATES = (
+  ("actor_obs_normalizer.mean", "actor_obs_normalizer.var"),
+  ("obs_normalizer.mean", "obs_normalizer.var"),
+)
+
+
+def main() -> None:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--checkpoint", type=Path, required=True)
+  parser.add_argument("--rollout", type=Path, required=True)
+  parser.add_argument("--out", type=Path, required=True)
+  parser.add_argument(
+    "--actor-prefix",
+    default="actor.",
+    help="State dict key prefix for the actor MLP's Sequential layers.",
+  )
+  args = parser.parse_args()
+
+  model = BalanceBotPolicyRef()
+  state = torch.load(args.checkpoint, map_location="cpu")
+  # NOTE: adjust this key path once the real rsl_rl checkpoint layout is
+  # known -- typically state["model_state_dict"] for rsl_rl's OnPolicyRunner.
+  state_dict = state["model_state_dict"]
+  load_from_rsl_rl_state_dict(model, state_dict, prefix=args.actor_prefix)
+
+  # rl_cfg.py sets obs_normalization=True -- fold the running normalizer
+  # into fc1 if present under a known key spelling, otherwise assume the
+  # rollout was already recorded post-normalization.
+  for mean_key, var_key in _NORMALIZER_KEY_CANDIDATES:
+    if mean_key in state_dict and var_key in state_dict:
+      mean = state_dict[mean_key].detach().float()
+      std = state_dict[var_key].detach().float().clamp_min(1e-8).sqrt()
+      fold_input_normalization(model, mean, std)
+      break
+  else:
+    print(
+      "WARNING: no obs normalizer found in checkpoint under the known key "
+      "spellings; assuming the rollout observations are already normalized, "
+      "or that the policy was trained without normalization."
+    )
+
+  model.eval()
+
+  obs_sequence = np.load(args.rollout).astype(np.float32)
+  stats = calibrate(model, obs_sequence)
+
+  rust_src = export_policy_weights_rs(model, stats)
+  args.out.parent.mkdir(parents=True, exist_ok=True)
+  args.out.write_text(rust_src)
+  print(f"Wrote {args.out} ({len(rust_src)} bytes)")
+
+
+if __name__ == "__main__":
+  main()
