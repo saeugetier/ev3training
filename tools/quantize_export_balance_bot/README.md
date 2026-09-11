@@ -6,6 +6,28 @@ Converts a trained mjlab/rsl_rl balance-bot policy checkpoint into Q15
 `tools/quantize_export_robocup` but adapted to this task's simpler
 feed-forward topology (no LSTM).
 
+## Running the scripts
+
+Both `record_rollout.py` and `cli.py` must be run as `-m tools....` modules
+from the **repository root** (`tools/` has no `__init__.py`, so it only
+resolves as a namespace package when the repo root is on `sys.path`, which
+`python -m` adds automatically for the current directory). `record_rollout.py`
+additionally needs `balance_bot` and its `mjlab`/`torch` dependencies
+importable, which live in `balance_robot_rl`'s own environment, not this
+top-level one:
+
+```bash
+cd balance_robot_rl && uv sync && cd ..   # one-time: create balance_robot_rl/.venv
+uv run --project balance_robot_rl \
+  python -m tools.quantize_export_balance_bot.record_rollout \
+  --checkpoint balance_robot_rl/logs/rsl_rl/balance_bot/<run>/model_2500.pt \
+  --steps 2000 \
+  --out rollout_obs.npy
+```
+
+`cli.py`/`export_rust.py` only need `torch`/`numpy`, so they can run from any
+environment that has those, still invoked from the repository root.
+
 ## Pipeline
 
 1. `reference_model.py` -- float reference of the exact deployed topology
