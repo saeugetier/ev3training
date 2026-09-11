@@ -7,7 +7,7 @@ commands of two continuous signed wheel controls in [-1, 1].
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as base_mdp
 from mjlab.envs.mdp import dr
-from mjlab.envs.mdp.actions import JointVelocityActionCfg
+from mjlab.envs.mdp.actions import JointEffortActionCfg
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.command_manager import CommandTermCfg
 from mjlab.managers.event_manager import EventTermCfg
@@ -152,15 +152,16 @@ def balance_bot_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   }
 
   ##
-  # Actions: target motor speed per wheel.
+  # Actions: motor effort per wheel, matching the EV3's duty-cycle-only
+  # motor control (no direct torque or speed regulation on-device).
   ##
 
   actions: dict[str, ActionTermCfg] = {
-    "wheel_speed": JointVelocityActionCfg(
+    "wheel_effort": JointEffortActionCfg(
       entity_name="robot",
       actuator_names=WHEEL_NAMES,
       preserve_order=True,
-      scale=WHEEL_SPEED,
+      scale=1.0,
     ),
   }
 

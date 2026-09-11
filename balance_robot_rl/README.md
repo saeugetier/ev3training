@@ -48,7 +48,7 @@ The policy only consumes quantities that the real robot can measure:
 | Angular rate (3 axes) | Gyro | `gyro_rate` |
 | Wheel speed | Encoder differences | `wheel_speed` |
 | Rotation-distance error per wheel | Encoder odometry vs. commanded rotation | `wheel_distance_error` |
-| Remote control buttons (left, right) | RC receiver | `remote_buttons` |
+| Remote control (left, right) | RC receiver | `remote_control` |
 | Previous motor command | Controller state | `last_action` |
 
 The actor group stacks the last 3 samples of each term (36 values) and is
@@ -58,10 +58,11 @@ once at start-up, it carries a **constant per-episode offset** (±0.05 rad,
 be robust to a mis-zeroed IMU. The critic additionally sees privileged base
 linear velocity and projected gravity.
 
-Actions are normalized target speeds for the two wheels
-(`JointVelocityActionCfg`, one per wheel). A policy output of `-1` or `1`
-corresponds to `-12` or `12` rad/s and is applied at 100 Hz (2.5 ms physics
-timestep, `decimation=4`).
+Actions are normalized motor effort for the two wheels (`JointEffortActionCfg`,
+one per wheel), applied at 100 Hz (2.5 ms physics timestep, `decimation=4`).
+This mirrors the EV3, which has no on-device torque or speed servo — only
+open-loop duty-cycle motor control (`set_duty_cycle_sp`) — so a policy output
+of `-1..1` maps directly to a `-100..100` duty cycle on the real robot.
 
 ## Remote control command
 

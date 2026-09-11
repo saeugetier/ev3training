@@ -13,9 +13,9 @@
              that MuJoCo's max() contact rule lets the ground value dominate. -->
         <geom type="cylinder" size="0.05 0.015" quat="0.7071068 0.7071068 0 0"
               rgba="0.15 0.15 0.15 1" friction="0.2 0.02 0.001"/>
-        <!-- Speed-controlled actuator; the action config limits the command to
-             the wheel speed range used by the training task. -->
-        <velocity ctrlrange="-12 12" kv="0.6"/>
+        <!-- Peak torque 0.5 Nm, matching a small geared DC motor. Mirrors the
+             EV3's open-loop duty-cycle motor control (no speed servo). -->
+        <motor ctrlrange="-1 1" gear="0.5"/>
       </default>
     </default>
   </default>
@@ -47,8 +47,8 @@
   </worldbody>
 
   <actuator>
-    <velocity name="left_wheel" joint="left_wheel" class="wheel"/>
-    <velocity name="right_wheel" joint="right_wheel" class="wheel"/>
+    <motor name="left_wheel" joint="left_wheel" class="wheel"/>
+    <motor name="right_wheel" joint="right_wheel" class="wheel"/>
   </actuator>
 
   <!-- Onboard sensor suite of the real robot. The policy only consumes
