@@ -45,7 +45,7 @@ GROUND_FRICTION_RANGE = (0.25, 1.2)
 def uneven_terrain_cfg() -> TerrainGeneratorCfg:
   """Slightly uneven ground: bumps and long waves of a few centimeters."""
   return TerrainGeneratorCfg(
-    size=(4.0, 4.0),
+    size=(6.0, 6.0),
     border_width=2.0,
     num_rows=5,
     num_cols=5,
@@ -57,12 +57,12 @@ def uneven_terrain_cfg() -> TerrainGeneratorCfg:
         proportion=0.45,
         noise_range=(0.005, 0.02),
         noise_step=0.005,
-        horizontal_scale=0.05,
+        horizontal_scale=0.10,
         border_width=0.25,
       ),
       "waves": wave_terrain(
         proportion=0.3,
-        amplitude_range=(0.01, 0.035),
+        amplitude_range=(0.01, 0.065),
         num_waves=3,
         border_width=0.25,
       ),
