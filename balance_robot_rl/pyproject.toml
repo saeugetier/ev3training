@@ -8,7 +8,7 @@ dependencies = ["mjlab>=1.6.0", "torch>=2.7.0", "wandb==0.22.3"]
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
-url = "https: //download.pytorch.org/uhl/cu128"
+url = "https://download.pytorch.org/uhl/cu128"
 explicit = true
 
 [tool.uv. sources]
