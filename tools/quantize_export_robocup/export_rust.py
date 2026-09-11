@@ -14,8 +14,8 @@ from __future__ import annotations
 import numpy as np
 import torch.nn as nn
 
-from tools.quantize_export.calibrate import FIXED_UNIT_SCALE, CalibrationStats, GateStats
-from tools.quantize_export.quantize import (
+from tools.quantize_export_robocup.calibrate import FIXED_UNIT_SCALE, CalibrationStats, GateStats
+from tools.quantize_export_robocup.quantize import (
     add_s16_input_requant_params,
     add_s16_output_requant_params,
     calibrate_symmetric_scale,

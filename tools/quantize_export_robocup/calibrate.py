@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 
-from tools.quantize_export.reference_model import RoboCupPolicyRef
+from tools.quantize_export_robocup.reference_model import RoboCupPolicyRef
 
 # Activations bounded by tanh/sigmoid: fixed Q15 scale, no calibration needed.
 FIXED_UNIT_SCALE = 1.0 / 32767.0

@@ -21,9 +21,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from tools.quantize_export.calibrate import calibrate
-from tools.quantize_export.export_rust import export_policy_weights_rs
-from tools.quantize_export.reference_model import RoboCupPolicyRef
+from tools.quantize_export_robocup.calibrate import calibrate
+from tools.quantize_export_robocup.export_rust import export_policy_weights_rs
+from tools.quantize_export_robocup.reference_model import RoboCupPolicyRef
 
 
 def main() -> None:

@@ -23,7 +23,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from tools.quantize_export.network_spec import DECODER_DIM, INPUT_DIM, LSTM_HIDDEN_DIM, OUTPUT_DIM
+from tools.quantize_export_robocup.network_spec import DECODER_DIM, INPUT_DIM, LSTM_HIDDEN_DIM, OUTPUT_DIM
 
 
 class RoboCupPolicyRef(nn.Module):
