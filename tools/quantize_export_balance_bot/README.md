@@ -20,10 +20,13 @@ feed-forward topology (no LSTM).
    ```bash
    python -m tools.quantize_export_balance_bot.record_rollout \
      --task Mjlab-Drive-BalanceBot \
-     --wandb-run-path your-org/mjlab/run-id \
+     --checkpoint logs/rsl_rl/balance_bot/<run>/model_2500.pt \
      --steps 2000 \
      --out rollout_obs.npy
    ```
+   `--checkpoint` is a local `.pt` file -- rsl_rl saves checkpoints locally
+   regardless of the logger backend, so a tensorboard-only run works the
+   same as a wandb-tracked one.
 3. `calibrate.py` -- collect per-layer pre-activation absmax over the
    rollout (every intermediate tensor is a plain FC logit, no sigmoid/tanh
    gates to calibrate).
