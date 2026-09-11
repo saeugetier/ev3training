@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "mjlab RL project: two-wheel self-balancing robot (segway) driven by a two-button remote control."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["mjlab>=1.6.0", "torch>=2.7.0", "wandb==0.22.3"]
+dependencies = ["mjlab>=1.6.0", "torch>=2.7.0", "wandb==0.22.3", "gymnasium"]
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
