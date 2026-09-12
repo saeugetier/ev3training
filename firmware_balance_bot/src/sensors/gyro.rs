@@ -1,31 +1,41 @@
-//! Thin wrapper around `ev3dev_lang_rust::sensors::GyroSensor`, in combined
-//! Angle + Rotational Speed mode (`GYRO-G&A`), verified against the
-//! installed crate source (`ev3dev-lang-rust/src/sensors/gyro_sensor.rs`):
-//! `get_angle()`/`get_rotational_speed()` both read from that one mode
-//! (value0 / value1) without a separate mode switch per call.
+//! Thin wrapper around `ev3dev_lang_rust::sensors::GyroSensor`.
+//!
+//! The EV3 driver advertises `GYRO-G&A`, but this sensor times out when that
+//! mode is selected. The firmware therefore uses the working `GYRO-ANG` mode
+//! and differentiates consecutive angle samples for rotational speed.
 
 use ev3dev_lang_rust::sensors::GyroSensor;
 use ev3dev_lang_rust::Ev3Result;
+use std::time::Instant;
 
 pub struct Gyro {
     sensor: GyroSensor,
+    last_angle_rad: Option<f32>,
+    last_sample: Instant,
 }
 
 impl Gyro {
     pub fn find() -> Ev3Result<Self> {
         let sensor = GyroSensor::find()?;
-        sensor.set_mode_gyro_g_and_a()?; // Combined angle + rate mode.
-        Ok(Self { sensor })
+        sensor.set_mode_gyro_ang()?;
+        Ok(Self {
+            sensor,
+            last_angle_rad: None,
+            last_sample: Instant::now(),
+        })
     }
 
-    /// Tilt angle about the wheel axis [rad]. Zeroed by the sensor at
-    /// power-up, matching the sim's `imu_pitch` (see `mdp.py`).
-    pub fn angle_rad(&self) -> Ev3Result<f32> {
-        Ok((self.sensor.get_angle()? as f32).to_radians())
-    }
-
-    /// Tilt rate about the wheel axis [rad/s].
-    pub fn rate_rad_s(&self) -> Ev3Result<f32> {
-        Ok((self.sensor.get_rotational_speed()? as f32).to_radians())
+    /// Read tilt angle and derive tilt rate from consecutive angle samples.
+    pub fn sample(&mut self) -> Ev3Result<(f32, f32)> {
+        let angle_rad = (self.sensor.get_angle()? as f32).to_radians();
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_sample).as_secs_f32();
+        let rate_rad_s = self
+            .last_angle_rad
+            .map(|last| (angle_rad - last) / dt.max(1e-4))
+            .unwrap_or(0.0);
+        self.last_angle_rad = Some(angle_rad);
+        self.last_sample = now;
+        Ok((angle_rad, rate_rad_s))
     }
 }
