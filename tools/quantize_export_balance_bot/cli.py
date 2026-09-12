@@ -66,14 +66,17 @@ def _resolve_actor_prefix(state_dict: dict, requested: str | None = None) -> str
   """Resolve the layer-key prefix for a full or actor-only state dict."""
   if requested is not None:
     return requested
+  if "mlp.0.weight" in state_dict:
+    return "mlp."
   if "actor.0.weight" in state_dict:
     return "actor."
   if "0.weight" in state_dict:
     return ""
   available = ", ".join(str(key) for key in list(state_dict.keys())[:12])
   raise KeyError(
-    "Could not find the first actor layer. Expected 'actor.0.weight' or "
-    f"'0.weight'; sample state-dict keys: {available}"
+    "Could not find the first actor layer. Expected 'mlp.0.weight', "
+    "'actor.0.weight', or '0.weight'; "
+    f"sample state-dict keys: {available}"
   )
 
 
