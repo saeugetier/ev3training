@@ -13,34 +13,36 @@ saves checkpoints to the local `log_dir` regardless of which logger
 (`tensorboard`, `wandb`, `neptune`) is selected for metric streaming, so a
 tensorboard-only run's checkpoint works here unchanged.
 
-ASSUMPTION / TODO: this drives the real mjlab `gym.make(task)` env and an
-rsl_rl `OnPolicyRunner`-loaded policy, whose exact loading API (constructing
-an `OnPolicyRunner`, calling `.load(checkpoint)`, extracting the actor via
-`.get_inference_policy()`) is not yet verified against an installed
-mjlab/rsl_rl version. Adjust the `load_policy`/`load_env` functions below
-once mjlab is actually installed.
+The environment is loaded through mjlab's task registry and the policy is
+loaded through the same `MjlabOnPolicyRunner` API used by mjlab's `play`
+command. The observation array contains the actor observation stream only.
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
+import torch
 
 
 def load_env(task: str, num_envs: int = 1):
   """Create a single-env mjlab task instance for rollout recording."""
   import balance_bot.tasks  # noqa: F401  (registers the task id)
   from mjlab.envs import ManagerBasedRlEnv
+  from mjlab.rl import RslRlVecEnvWrapper
+  from mjlab.tasks.registry import load_rl_cfg
   from mjlab.tasks.registry import load_env_cfg
 
   env_cfg = load_env_cfg(task, play=True)
   env_cfg.scene.num_envs = num_envs
-  return ManagerBasedRlEnv(
+  env = ManagerBasedRlEnv(
     cfg=env_cfg,
     device="cuda:0" if _cuda_available() else "cpu",
   )
+  return RslRlVecEnvWrapper(env, clip_actions=load_rl_cfg(task).clip_actions)
 
 
 def _cuda_available() -> bool:
@@ -49,31 +51,44 @@ def _cuda_available() -> bool:
   return torch.cuda.is_available()
 
 
-def load_policy(checkpoint: Path):
+def load_policy(task: str, checkpoint: Path, env):
   """Load a trained actor from a local rsl_rl checkpoint file.
 
-  NOTE: rsl_rl's `OnPolicyRunner.load(...)` + `.get_inference_policy(...)`
-  is the typical entry point for this in Isaac-Lab-family projects; verify
-  the exact call against your installed rsl_rl/mjlab version.
+  This follows the checkpoint-loading path used by mjlab's `play` command.
   """
-  raise NotImplementedError(
-    "Wire this up to rsl_rl's checkpoint loading once mjlab/rsl_rl are "
-    "installed in this environment -- see this module's docstring."
+  from mjlab.rl import MjlabOnPolicyRunner
+  from mjlab.tasks.registry import load_rl_cfg, load_runner_cls
+
+  if not checkpoint.is_file():
+    raise FileNotFoundError(f"Checkpoint file not found: {checkpoint}")
+
+  agent_cfg = load_rl_cfg(task)
+  runner_cls = load_runner_cls(task) or MjlabOnPolicyRunner
+  device = str(env.device)
+  runner = runner_cls(env, asdict(agent_cfg), device=device)
+  runner.load(
+    str(checkpoint),
+    load_cfg={"actor": True},
+    strict=True,
+    map_location=device,
   )
+  return runner.get_inference_policy(device=device)
 
 
 def record_rollout(task: str, checkpoint: Path, steps: int) -> np.ndarray:
   env = load_env(task)
-  policy = load_policy(checkpoint)
+  policy = load_policy(task, checkpoint, env)
 
-  obs, _ = env.reset()
-  observations = np.zeros((steps, obs.shape[-1]), dtype=np.float32)
+  obs = env.get_observations()
+  actor_obs = obs["actor"]
+  observations = np.zeros((steps, actor_obs.shape[-1]), dtype=np.float32)
   for t in range(steps):
-    observations[t] = obs.detach().cpu().numpy()[0]
-    action = policy(obs)
-    obs, _reward, terminated, truncated, _info = env.step(action)
-    if terminated[0] or truncated[0]:
-      obs, _ = env.reset()
+    observations[t] = obs["actor"].detach().cpu().numpy()[0]
+    with torch.no_grad():
+      action = policy(obs)
+    obs, _reward, dones, _info = env.step(action)
+    if bool(dones[0]):
+      obs = env.get_observations()
   return observations
 
 
