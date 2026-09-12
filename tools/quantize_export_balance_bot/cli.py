@@ -39,6 +39,29 @@ _NORMALIZER_KEY_CANDIDATES = (
 )
 
 
+def _extract_state_dict(state: object) -> dict:
+  """Extract model weights from common rsl_rl/PyTorch checkpoint layouts."""
+  if not isinstance(state, dict):
+    raise TypeError(
+      f"Checkpoint must contain a mapping, got {type(state).__name__}."
+    )
+
+  for key in ("model_state_dict", "state_dict", "actor_state_dict"):
+    candidate = state.get(key)
+    if isinstance(candidate, dict):
+      return candidate
+
+  if any(key.endswith(".weight") or key.endswith(".bias") for key in state):
+    return state
+
+  available = ", ".join(str(key) for key in state.keys())
+  raise KeyError(
+    "Could not find model weights in checkpoint. Expected one of "
+    "'model_state_dict', 'state_dict', or 'actor_state_dict', or a direct "
+    f"state dict. Available top-level keys: {available}"
+  )
+
+
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("--checkpoint", type=Path, required=True)
@@ -53,9 +76,7 @@ def main() -> None:
 
   model = BalanceBotPolicyRef()
   state = torch.load(args.checkpoint, map_location="cpu")
-  # NOTE: adjust this key path once the real rsl_rl checkpoint layout is
-  # known -- typically state["model_state_dict"] for rsl_rl's OnPolicyRunner.
-  state_dict = state["model_state_dict"]
+  state_dict = _extract_state_dict(state)
   load_from_rsl_rl_state_dict(model, state_dict, prefix=args.actor_prefix)
 
   # rl_cfg.py sets obs_normalization=True -- fold the running normalizer
