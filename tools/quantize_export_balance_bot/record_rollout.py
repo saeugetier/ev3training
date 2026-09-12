@@ -31,12 +31,22 @@ import numpy as np
 
 def load_env(task: str, num_envs: int = 1):
   """Create a single-env mjlab task instance for rollout recording."""
-  import gymnasium as gym
-
   import balance_bot.tasks  # noqa: F401  (registers the task id)
+  from mjlab.envs import ManagerBasedRlEnv
+  from mjlab.tasks.registry import load_env_cfg
 
-  env = gym.make(task, env_cfg_overrides={"scene": {"num_envs": num_envs}})
-  return env
+  env_cfg = load_env_cfg(task, play=True)
+  env_cfg.scene.num_envs = num_envs
+  return ManagerBasedRlEnv(
+    cfg=env_cfg,
+    device="cuda:0" if _cuda_available() else "cpu",
+  )
+
+
+def _cuda_available() -> bool:
+  import torch
+
+  return torch.cuda.is_available()
 
 
 def load_policy(checkpoint: Path):
