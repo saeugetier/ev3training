@@ -62,6 +62,21 @@ def _extract_state_dict(state: object) -> dict:
   )
 
 
+def _resolve_actor_prefix(state_dict: dict, requested: str | None = None) -> str:
+  """Resolve the layer-key prefix for a full or actor-only state dict."""
+  if requested is not None:
+    return requested
+  if "actor.0.weight" in state_dict:
+    return "actor."
+  if "0.weight" in state_dict:
+    return ""
+  available = ", ".join(str(key) for key in list(state_dict.keys())[:12])
+  raise KeyError(
+    "Could not find the first actor layer. Expected 'actor.0.weight' or "
+    f"'0.weight'; sample state-dict keys: {available}"
+  )
+
+
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("--checkpoint", type=Path, required=True)
@@ -69,15 +84,16 @@ def main() -> None:
   parser.add_argument("--out", type=Path, required=True)
   parser.add_argument(
     "--actor-prefix",
-    default="actor.",
-    help="State dict key prefix for the actor MLP's Sequential layers.",
+    default=None,
+    help="Optional state-dict key prefix; auto-detected by default.",
   )
   args = parser.parse_args()
 
   model = BalanceBotPolicyRef()
   state = torch.load(args.checkpoint, map_location="cpu")
   state_dict = _extract_state_dict(state)
-  load_from_rsl_rl_state_dict(model, state_dict, prefix=args.actor_prefix)
+  actor_prefix = _resolve_actor_prefix(state_dict, args.actor_prefix)
+  load_from_rsl_rl_state_dict(model, state_dict, prefix=actor_prefix)
 
   # rl_cfg.py sets obs_normalization=True -- fold the running normalizer
   # into fc1 if present under a known key spelling, otherwise assume the
