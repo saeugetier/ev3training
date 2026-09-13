@@ -8,6 +8,9 @@ use ev3dev_lang_rust::sensors::GyroSensor;
 use ev3dev_lang_rust::Ev3Result;
 use std::time::Instant;
 
+const PI: f32 = std::f32::consts::PI;
+const TWO_PI: f32 = 2.0 * PI;
+
 pub struct Gyro {
     sensor: GyroSensor,
     angle_rad: f32,
@@ -31,6 +34,7 @@ impl Gyro {
         let now = Instant::now();
         let dt = now.duration_since(self.last_sample).as_secs_f32();
         self.angle_rad += rate_rad_s * dt.min(0.1);
+        self.angle_rad = (self.angle_rad + PI).rem_euclid(TWO_PI) - PI;
         self.last_sample = now;
         Ok((self.angle_rad, rate_rad_s))
     }
