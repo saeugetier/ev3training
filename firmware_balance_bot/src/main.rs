@@ -37,6 +37,7 @@ fn main() -> Ev3Result<()> {
     let stop_requested = Arc::new(AtomicBool::new(false));
     let stop_requested_handler = Arc::clone(&stop_requested);
     ctrlc::set_handler(move || {
+        eprintln!("Ctrl-C signal received");
         stop_requested_handler.store(true, Ordering::SeqCst);
     })
     .map_err(|error| {
