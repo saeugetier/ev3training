@@ -19,6 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 ev3dev-lang-rust = "0.16"
 embedded-nn = "0.2"
+ctrlc = "3.4"
 
 [profile.release]
 # No FPU on ARMv5TEJ: keep codegen conservative, avoid relying on

@@ -1,3 +1,4 @@
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::thread;
 use std::time::Duration;
 
@@ -33,6 +34,18 @@ fn main() -> Ev3Result<()> {
         error
     })?;
 
+    let stop_requested = Arc::new(AtomicBool::new(false));
+    let stop_requested_handler = Arc::clone(&stop_requested);
+    ctrlc::set_handler(move || {
+        stop_requested_handler.store(true, Ordering::SeqCst);
+    })
+    .map_err(|error| {
+        eprintln!("failed to install Ctrl-C handler: {error}");
+        ev3dev_lang_rust::Ev3Error::InternalError {
+            msg: format!("failed to install Ctrl-C handler: {error}"),
+        }
+    })?;
+
     let left_position = left_motor.position_rad().map_err(|error| {
         eprintln!("left motor position read failed: {error:?}");
         error
@@ -44,8 +57,18 @@ fn main() -> Ev3Result<()> {
     let mut command_state = RemoteCommandState::new([left_position, right_position]);
     let mut history = ObservationHistory::new();
     let mut last_action = [0.0f32; 2];
+    let mut tick_count = 0u32;
+    let mut control_time_sum = Duration::ZERO;
+    let mut control_time_min = Duration::MAX;
+    let mut control_time_max = Duration::ZERO;
 
     loop {
+        if stop_requested.load(Ordering::SeqCst) {
+            eprintln!("Ctrl-C received, stopping motors");
+            left_motor.stop()?;
+            right_motor.stop()?;
+            return Ok(());
+        }
         let tick_start = std::time::Instant::now();
 
         let (gyro_angle_rad, gyro_tilt_rate_rad_s) = gyro.sample().map_err(|error| {
@@ -94,11 +117,36 @@ fn main() -> Ev3Result<()> {
             eprintln!("motor duty-cycle write failed: {error:?}");
             error
         })?;
+        let control_elapsed = tick_start.elapsed();
+        control_time_sum += control_elapsed;
+        control_time_min = control_time_min.min(control_elapsed);
+        control_time_max = control_time_max.max(control_elapsed);
+        tick_count += 1;
+        if tick_count % 100 == 0 {
+            let average = control_time_sum / 100;
+            eprintln!(
+                "diag control_us(last/avg/min/max)={}/{}/{}/{} angle={:.3} rate={:.3} remote=({:.1},{:.1}) wheels=({:.2},{:.2}) action=({:.3},{:.3})",
+                control_elapsed.as_micros(),
+                average.as_micros(),
+                control_time_min.as_micros(),
+                control_time_max.as_micros(),
+                gyro_angle_rad,
+                gyro_tilt_rate_rad_s,
+                remote_controls[0],
+                remote_controls[1],
+                wheel_speed_rad_s[0],
+                wheel_speed_rad_s[1],
+                last_action[0],
+                last_action[1],
+            );
+            control_time_sum = Duration::ZERO;
+            control_time_min = Duration::MAX;
+            control_time_max = Duration::ZERO;
+        }
 
-        let elapsed = tick_start.elapsed();
         let period = Duration::from_millis(config::CONTROL_PERIOD_MS);
-        if elapsed < period {
-            thread::sleep(period - elapsed);
+        if control_elapsed < period {
+            thread::sleep(period - control_elapsed);
         }
     }
 }
