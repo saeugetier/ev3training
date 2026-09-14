@@ -35,6 +35,12 @@ from tools.quantize_export_balance_bot.reference_model import (
 # Known rsl_rl checkpoint key spellings for the obs normalizer's running
 # mean/var; try each in order since this varies across rsl_rl versions.
 _NORMALIZER_KEY_CANDIDATES = (
+  ("actor_obs_normalizer._mean", "actor_obs_normalizer._std"),
+  ("obs_normalizer._mean", "obs_normalizer._std"),
+  ("actor_obs_normalizer._mean", "actor_obs_normalizer.std"),
+  ("obs_normalizer._mean", "obs_normalizer.std"),
+  ("actor_obs_normalizer._mean", "actor_obs_normalizer._var"),
+  ("obs_normalizer._mean", "obs_normalizer._var"),
   ("actor_obs_normalizer.mean", "actor_obs_normalizer._std"),
   ("obs_normalizer.mean", "obs_normalizer._std"),
   ("actor_obs_normalizer.mean", "actor_obs_normalizer.std"),
@@ -62,11 +68,10 @@ def _find_normalizer(state: object, state_dict: dict) -> tuple[torch.Tensor, tor
   if state is not state_dict:
     sources.extend(_mapping_sources(state))
   for source in sources:
-    normalized = {str(key).replace(" ", ""): value for key, value in source.items()}
     for mean_key, std_key in _NORMALIZER_KEY_CANDIDATES:
-      if mean_key in normalized and std_key in normalized:
-        mean = normalized[mean_key].detach().float()
-        return mean, _normalizer_std(normalized, std_key)
+      if mean_key in source and std_key in source:
+        mean = source[mean_key].detach().float()
+        return mean, _normalizer_std(source, std_key)
   return None
 
 
