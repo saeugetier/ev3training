@@ -18,6 +18,7 @@ docstring for the assumed rsl_rl `ActorCritic` layout.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -46,16 +47,35 @@ def _normalizer_std(state_dict: dict, std_key: str) -> torch.Tensor:
   return std if std_key.endswith("._std") else std.sqrt()
 
 
+def _mapping_sources(value: object):
+  if not isinstance(value, Mapping):
+    return
+  yield value
+  for nested in value.values():
+    yield from _mapping_sources(nested)
+
+
 def _find_normalizer(state: object, state_dict: dict) -> tuple[torch.Tensor, torch.Tensor] | None:
-  sources = [state_dict]
-  if isinstance(state, dict) and state is not state_dict:
-    sources.append(state)
+  sources = list(_mapping_sources(state_dict))
+  if state is not state_dict:
+    sources.extend(_mapping_sources(state))
   for source in sources:
     for mean_key, std_key in _NORMALIZER_KEY_CANDIDATES:
       if mean_key in source and std_key in source:
         mean = source[mean_key].detach().float()
         return mean, _normalizer_std(source, std_key)
   return None
+
+
+def _normalizer_keys(state: object) -> list[str]:
+  return sorted(
+    {
+      str(key)
+      for source in _mapping_sources(state)
+      for key in source
+      if "normalizer" in str(key).lower()
+    }
+  )
 
 
 def _extract_state_dict(state: object) -> dict:
@@ -127,7 +147,8 @@ def main() -> None:
     print(
       "WARNING: no obs normalizer found in checkpoint under the known key "
       "spellings; assuming the rollout observations are already normalized, "
-      "or that the policy was trained without normalization."
+      "or that the policy was trained without normalization. "
+      f"Normalizer-like keys: {_normalizer_keys(state)}"
     )
 
   model.eval()
