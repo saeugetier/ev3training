@@ -66,7 +66,14 @@ def fold_input_normalization(
   rsl_rl-version specific, so callers must resolve and pass the tensors in
   explicitly rather than this function guessing the key.
   """
-  std = std.clamp_min(1e-6)
+  mean = mean.reshape(-1)
+  std = std.reshape(-1).clamp_min(1e-6)
+  if mean.numel() != model.fc1.in_features or std.numel() != model.fc1.in_features:
+    raise ValueError(
+      "Observation normalizer size does not match the policy input: "
+      f"mean={mean.numel()}, std={std.numel()}, "
+      f"expected={model.fc1.in_features}"
+    )
   with torch.no_grad():
     new_weight = model.fc1.weight / std
     new_bias = model.fc1.bias - model.fc1.weight @ (mean / std)
