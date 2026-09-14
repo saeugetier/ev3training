@@ -37,6 +37,8 @@ from tools.quantize_export_balance_bot.reference_model import (
 _NORMALIZER_KEY_CANDIDATES = (
   ("actor_obs_normalizer.mean", "actor_obs_normalizer._std"),
   ("obs_normalizer.mean", "obs_normalizer._std"),
+  ("actor_obs_normalizer.mean", "actor_obs_normalizer.std"),
+  ("obs_normalizer.mean", "obs_normalizer.std"),
   ("actor_obs_normalizer.mean", "actor_obs_normalizer.var"),
   ("obs_normalizer.mean", "obs_normalizer.var"),
 )
@@ -44,7 +46,7 @@ _NORMALIZER_KEY_CANDIDATES = (
 
 def _normalizer_std(state_dict: dict, std_key: str) -> torch.Tensor:
   std = state_dict[std_key].detach().float().clamp_min(1e-8)
-  return std if std_key.endswith("._std") else std.sqrt()
+  return std if std_key.endswith(("._std", ".std")) else std.sqrt()
 
 
 def _mapping_sources(value: object):
@@ -60,10 +62,11 @@ def _find_normalizer(state: object, state_dict: dict) -> tuple[torch.Tensor, tor
   if state is not state_dict:
     sources.extend(_mapping_sources(state))
   for source in sources:
+    normalized = {str(key).replace(" ", ""): value for key, value in source.items()}
     for mean_key, std_key in _NORMALIZER_KEY_CANDIDATES:
-      if mean_key in source and std_key in source:
-        mean = source[mean_key].detach().float()
-        return mean, _normalizer_std(source, std_key)
+      if mean_key in normalized and std_key in normalized:
+        mean = normalized[mean_key].detach().float()
+        return mean, _normalizer_std(normalized, std_key)
   return None
 
 
