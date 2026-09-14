@@ -6,6 +6,7 @@ use ev3dev_lang_rust::motors::MotorPort;
 use ev3dev_lang_rust::Ev3Result;
 
 use ev3_balance_bot_firmware::command::RemoteCommandState;
+use ev3_balance_bot_firmware::display::Display;
 use ev3_balance_bot_firmware::observation::{build_step_obs, quantize_obs, ObservationHistory};
 use ev3_balance_bot_firmware::sensors::gyro::Gyro;
 use ev3_balance_bot_firmware::sensors::remote::Remote;
@@ -25,12 +26,16 @@ fn main() -> Ev3Result<()> {
         eprintln!("IR remote initialization failed on channel {REMOTE_CHANNEL}: {error:?}");
         error
     })?;
-    let left_motor = DriveMotor::new(MotorPort::OutA).map_err(|error| {
+    let left_motor = DriveMotor::new(MotorPort::OutD).map_err(|error| {
         eprintln!("left motor initialization failed on OutA: {error:?}");
         error
     })?;
-    let right_motor = DriveMotor::new(MotorPort::OutB).map_err(|error| {
+    let right_motor = DriveMotor::new(MotorPort::OutA).map_err(|error| {
         eprintln!("right motor initialization failed on OutB: {error:?}");
+        error
+    })?;
+    let mut display = Display::new().map_err(|error| {
+        eprintln!("EV3 display initialization failed: {error:?}");
         error
     })?;
 
@@ -140,6 +145,7 @@ fn main() -> Ev3Result<()> {
                 last_action[0],
                 last_action[1],
             );
+            display.show_gyro(gyro_angle_rad, gyro_tilt_rate_rad_s);
             control_time_sum = Duration::ZERO;
             control_time_min = Duration::MAX;
             control_time_max = Duration::ZERO;

@@ -5,6 +5,7 @@
 
 use ev3dev_lang_rust::Ev3Result;
 
+use crate::config::MAX_TEST_DUTY;
 use crate::policy_weights::ACTION_SCALE;
 use crate::sensors::tacho::DriveMotor;
 
@@ -19,8 +20,8 @@ pub fn apply_action(
     left: &DriveMotor,
     right: &DriveMotor,
 ) -> Ev3Result<[f32; 2]> {
-    let left_effort = dequantize_effort(action[0]);
-    let right_effort = dequantize_effort(action[1]);
+    let left_effort = dequantize_effort(action[0]).clamp(-MAX_TEST_DUTY, MAX_TEST_DUTY);
+    let right_effort = dequantize_effort(action[1]).clamp(-MAX_TEST_DUTY, MAX_TEST_DUTY);
 
     left.set_effort(left_effort)?;
     right.set_effort(right_effort)?;
