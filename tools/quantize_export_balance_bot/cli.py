@@ -34,9 +34,16 @@ from tools.quantize_export_balance_bot.reference_model import (
 # Known rsl_rl checkpoint key spellings for the obs normalizer's running
 # mean/var; try each in order since this varies across rsl_rl versions.
 _NORMALIZER_KEY_CANDIDATES = (
+  ("actor_obs_normalizer.mean", "actor_obs_normalizer._std"),
+  ("obs_normalizer.mean", "obs_normalizer._std"),
   ("actor_obs_normalizer.mean", "actor_obs_normalizer.var"),
   ("obs_normalizer.mean", "obs_normalizer.var"),
 )
+
+
+def _normalizer_std(state_dict: dict, std_key: str) -> torch.Tensor:
+  std = state_dict[std_key].detach().float().clamp_min(1e-8)
+  return std if std_key.endswith("._std") else std.sqrt()
 
 
 def _extract_state_dict(state: object) -> dict:
@@ -104,7 +111,7 @@ def main() -> None:
   for mean_key, var_key in _NORMALIZER_KEY_CANDIDATES:
     if mean_key in state_dict and var_key in state_dict:
       mean = state_dict[mean_key].detach().float()
-      std = state_dict[var_key].detach().float().clamp_min(1e-8).sqrt()
+      std = _normalizer_std(state_dict, var_key)
       fold_input_normalization(model, mean, std)
       break
   else:

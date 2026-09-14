@@ -22,6 +22,7 @@ import torch
 
 from tools.quantize_export_balance_bot.cli import (
   _extract_state_dict,
+  _normalizer_std,
   _resolve_actor_prefix,
   _NORMALIZER_KEY_CANDIDATES,
 )
@@ -51,7 +52,7 @@ def load_reference(checkpoint: Path) -> BalanceBotPolicyRef:
   for mean_key, var_key in _NORMALIZER_KEY_CANDIDATES:
     if mean_key in state_dict and var_key in state_dict:
       mean = state_dict[mean_key].detach().float()
-      std = state_dict[var_key].detach().float().clamp_min(1e-8).sqrt()
+      std = _normalizer_std(state_dict, var_key)
       fold_input_normalization(model, mean, std)
       break
   else:
