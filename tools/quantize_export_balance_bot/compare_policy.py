@@ -76,14 +76,30 @@ def main() -> None:
     raise SystemExit(f"expected {INPUT_DIM} Q15 values, got {len(args.input)}")
 
   obs_scale = read_rust_scale(args.weights_rs, "OBS_SCALE")
+  fc1_scale = read_rust_scale(args.weights_rs, "FC1_OUT_SCALE")
+  fc2_scale = read_rust_scale(args.weights_rs, "FC2_OUT_SCALE")
+  fc3_scale = read_rust_scale(args.weights_rs, "FC3_OUT_SCALE")
   action_scale = read_rust_scale(args.weights_rs, "ACTION_SCALE")
   model = load_reference(args.checkpoint)
   obs_q15 = torch.tensor(args.input, dtype=torch.float32)
   with torch.no_grad():
-    action = model((obs_q15 * obs_scale).unsqueeze(0))[0]
+    x = (obs_q15 * obs_scale).unsqueeze(0)
+    x = model.act(model.fc1(x))
+    fc1 = x[0]
+    x = model.act(model.fc2(x))
+    fc2 = x[0]
+    x = model.act(model.fc3(x))
+    fc3 = x[0]
+    action = model.fc_out(x)[0]
+
+  def quantized(values: torch.Tensor, scale: float) -> list[int]:
+    return values.div(scale).round().clamp(-32768, 32767).to(torch.int16).tolist()
 
   print(f"obs_scale={obs_scale:.10g}")
   print(f"action_scale={action_scale:.10g}")
+  print(f"pytorch_fc1_first8_q15={quantized(fc1, fc1_scale)[:8]}")
+  print(f"pytorch_fc2_first8_q15={quantized(fc2, fc2_scale)[:8]}")
+  print(f"pytorch_fc3_first8_q15={quantized(fc3, fc3_scale)[:8]}")
   print(
     "pytorch_action_raw: "
     f"left={action[0].item():.8f} right={action[1].item():.8f}"

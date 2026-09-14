@@ -14,7 +14,8 @@ use ev3_balance_bot_firmware::policy;
 use ev3_balance_bot_firmware::policy_weights::ACTION_SCALE;
 
 fn print_result(label: &str, obs: &[i16; INPUT_DIM]) {
-    let action = policy::infer(obs);
+    let trace = policy::infer_trace(obs);
+    let action = trace.action;
     println!("test: {label}");
     println!("  obs_q15: {:?}", obs);
     println!("  action_q15: {:?}", action);
@@ -28,6 +29,9 @@ fn print_result(label: &str, obs: &[i16; INPUT_DIM]) {
         (action[0] as f32 * ACTION_SCALE).clamp(-1.0, 1.0),
         (action[1] as f32 * ACTION_SCALE).clamp(-1.0, 1.0),
     );
+    println!("  trace_fc1_first8: {:?}", &trace.fc1[..8]);
+    println!("  trace_fc2_first8: {:?}", &trace.fc2[..8]);
+    println!("  trace_fc3_first8: {:?}", &trace.fc3[..8]);
 }
 
 fn parse_value(value: Option<&String>, name: &str) -> i16 {

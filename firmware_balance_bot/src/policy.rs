@@ -16,6 +16,13 @@ use embedded_nn::types::{Activation, Dims, FcParams, PerTensorQuantParams};
 use crate::config::{HIDDEN1_DIM, HIDDEN2_DIM, HIDDEN3_DIM, INPUT_DIM, OUTPUT_DIM};
 use crate::policy_weights as w;
 
+pub struct PolicyTrace {
+    pub fc1: [i16; HIDDEN1_DIM],
+    pub fc2: [i16; HIDDEN2_DIM],
+    pub fc3: [i16; HIDDEN3_DIM],
+    pub action: [i16; OUTPUT_DIM],
+}
+
 fn fc(
     input: &[i16],
     in_dim: usize,
@@ -55,6 +62,10 @@ fn fc(
 /// Runs one forward pass. `obs` must already be Q15-quantized at
 /// `policy_weights::OBS_SCALE` (see crate::observation module).
 pub fn infer(obs: &[i16; INPUT_DIM]) -> [i16; OUTPUT_DIM] {
+    infer_trace(obs).action
+}
+
+pub fn infer_trace(obs: &[i16; INPUT_DIM]) -> PolicyTrace {
     let mut h1 = [0i16; HIDDEN1_DIM];
     fc(
         obs,
@@ -111,5 +122,10 @@ pub fn infer(obs: &[i16; INPUT_DIM]) -> [i16; OUTPUT_DIM] {
         w::FC_OUT_SHIFT,
         &mut action,
     );
-    action
+    PolicyTrace {
+        fc1: h1,
+        fc2: h2,
+        fc3: h3,
+        action,
+    }
 }
