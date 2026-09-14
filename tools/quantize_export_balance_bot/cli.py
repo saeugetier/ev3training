@@ -46,6 +46,18 @@ def _normalizer_std(state_dict: dict, std_key: str) -> torch.Tensor:
   return std if std_key.endswith("._std") else std.sqrt()
 
 
+def _find_normalizer(state: object, state_dict: dict) -> tuple[torch.Tensor, torch.Tensor] | None:
+  sources = [state_dict]
+  if isinstance(state, dict) and state is not state_dict:
+    sources.append(state)
+  for source in sources:
+    for mean_key, std_key in _NORMALIZER_KEY_CANDIDATES:
+      if mean_key in source and std_key in source:
+        mean = source[mean_key].detach().float()
+        return mean, _normalizer_std(source, std_key)
+  return None
+
+
 def _extract_state_dict(state: object) -> dict:
   """Extract model weights from common rsl_rl/PyTorch checkpoint layouts."""
   if not isinstance(state, dict):
@@ -108,12 +120,9 @@ def main() -> None:
   # rl_cfg.py sets obs_normalization=True -- fold the running normalizer
   # into fc1 if present under a known key spelling, otherwise assume the
   # rollout was already recorded post-normalization.
-  for mean_key, var_key in _NORMALIZER_KEY_CANDIDATES:
-    if mean_key in state_dict and var_key in state_dict:
-      mean = state_dict[mean_key].detach().float()
-      std = _normalizer_std(state_dict, var_key)
-      fold_input_normalization(model, mean, std)
-      break
+  normalizer = _find_normalizer(state, state_dict)
+  if normalizer is not None:
+    fold_input_normalization(model, *normalizer)
   else:
     print(
       "WARNING: no obs normalizer found in checkpoint under the known key "
