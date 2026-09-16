@@ -29,34 +29,40 @@ fn fc(
     out_dim: usize,
     weight: &[i8],
     bias: &[i64],
-    multiplier: i32,
-    shift: i32,
+    multiplier: &[i32],
+    shift: &[i32],
     output: &mut [i16],
 ) {
+    // Per-output-channel (per-row) quantization: a single output neuron
+    // per `fully_connected_s16` call, each with its own weight scale, so
+    // one large-magnitude outlier weight doesn't coarsen every other
+    // neuron's int8 resolution (see export_rust.py's `_export_layer`).
     let fc_params = FcParams {
         input_offset: 0,
         filter_offset: 0,
         output_offset: 0,
         activation: Activation::int16_unconstrained(),
     };
-    let quant_params = PerTensorQuantParams::new(multiplier, shift);
-    // filter_dims: n=in_dim, c=out_dim (verified empirically, counterintuitive
-    // -- see firmware_robocup/src/policy.rs).
     let input_dims = Dims::new(1, 1, 1, in_dim as i32);
-    let filter_dims = Dims::new(in_dim as i32, 1, 1, out_dim as i32);
-    let output_dims = Dims::new(1, 1, 1, out_dim as i32);
-    fully_connected_s16(
-        &fc_params,
-        &quant_params,
-        &input_dims,
-        input,
-        &filter_dims,
-        weight,
-        Some(bias),
-        &output_dims,
-        output,
-    )
-    .expect("fully_connected_s16 dims mismatch");
+    let filter_dims = Dims::new(in_dim as i32, 1, 1, 1);
+    let output_dims = Dims::new(1, 1, 1, 1);
+    for row in 0..out_dim {
+        let quant_params = PerTensorQuantParams::new(multiplier[row], shift[row]);
+        let weight_row = &weight[row * in_dim..(row + 1) * in_dim];
+        let bias_row = &bias[row..row + 1];
+        fully_connected_s16(
+            &fc_params,
+            &quant_params,
+            &input_dims,
+            input,
+            &filter_dims,
+            weight_row,
+            Some(bias_row),
+            &output_dims,
+            &mut output[row..row + 1],
+        )
+        .expect("fully_connected_s16 dims mismatch");
+    }
 }
 
 /// Runs one forward pass. `obs` must already be Q15-quantized at
@@ -73,8 +79,8 @@ pub fn infer_trace(obs: &[i16; INPUT_DIM]) -> PolicyTrace {
         HIDDEN1_DIM,
         &w::FC1_WEIGHT,
         &w::FC1_BIAS,
-        w::FC1_MULTIPLIER,
-        w::FC1_SHIFT,
+        &w::FC1_MULTIPLIER,
+        &w::FC1_SHIFT,
         &mut h1,
     );
     for v in h1.iter_mut() {
@@ -88,8 +94,8 @@ pub fn infer_trace(obs: &[i16; INPUT_DIM]) -> PolicyTrace {
         HIDDEN2_DIM,
         &w::FC2_WEIGHT,
         &w::FC2_BIAS,
-        w::FC2_MULTIPLIER,
-        w::FC2_SHIFT,
+        &w::FC2_MULTIPLIER,
+        &w::FC2_SHIFT,
         &mut h2,
     );
     for v in h2.iter_mut() {
@@ -103,8 +109,8 @@ pub fn infer_trace(obs: &[i16; INPUT_DIM]) -> PolicyTrace {
         HIDDEN3_DIM,
         &w::FC3_WEIGHT,
         &w::FC3_BIAS,
-        w::FC3_MULTIPLIER,
-        w::FC3_SHIFT,
+        &w::FC3_MULTIPLIER,
+        &w::FC3_SHIFT,
         &mut h3,
     );
     for v in h3.iter_mut() {
@@ -118,8 +124,8 @@ pub fn infer_trace(obs: &[i16; INPUT_DIM]) -> PolicyTrace {
         OUTPUT_DIM,
         &w::FC_OUT_WEIGHT,
         &w::FC_OUT_BIAS,
-        w::FC_OUT_MULTIPLIER,
-        w::FC_OUT_SHIFT,
+        &w::FC_OUT_MULTIPLIER,
+        &w::FC_OUT_SHIFT,
         &mut action,
     );
     PolicyTrace {

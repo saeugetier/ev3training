@@ -39,27 +39,56 @@ def _fmt_i64_array(name: str, values: np.ndarray) -> str:
   return f"pub static {name}: [i64; {values.size}] = [{flat}];\n"
 
 
+def _fmt_i32_array(name: str, values: np.ndarray) -> str:
+  flat = ", ".join(str(int(v)) for v in values.flatten())
+  return f"pub static {name}: [i32; {values.size}] = [{flat}];\n"
+
+
 def _export_layer(
   prefix: str, layer, input_scale: float, output_scale: float
 ) -> str:
-  weight = layer.weight.detach().numpy()  # [out, in], row-major.
-  weight_scale = calibrate_symmetric_scale(weight, num_bits=8)
-  q_weight = quantize_weight_s8(weight, weight_scale)
-  multiplier, shift = fc_s16_requant_params(input_scale, weight_scale, output_scale)
-  out_dim, in_dim = weight.shape
+  """Per-output-channel (per-row) weight/bias/requant quantization.
 
+  A single shared (per-tensor) weight scale would be set by whichever
+  output neuron has the single largest-magnitude weight, coarsening the
+  int8 resolution for every other neuron -- verified empirically: one
+  outlier weight alone was enough to saturate at +-127, while typical
+  per-row weights were an order of magnitude smaller. Per-row scaling (and
+  a matching per-row multiplier/shift) gives every neuron its own optimal
+  resolution instead.
+  """
+  weight = layer.weight.detach().numpy()  # [out, in], row-major.
+  out_dim, in_dim = weight.shape
   bias = layer.bias.detach().numpy()
-  q_bias = quantize_bias_s64(bias, input_scale, weight_scale)
+
+  row_weight_scale = np.array(
+    [calibrate_symmetric_scale(weight[i], num_bits=8) for i in range(out_dim)]
+  )
+  q_weight = np.stack(
+    [quantize_weight_s8(weight[i], row_weight_scale[i]) for i in range(out_dim)]
+  )
+  q_bias = np.array(
+    [
+      quantize_bias_s64(bias[i : i + 1], input_scale, row_weight_scale[i])[0]
+      for i in range(out_dim)
+    ]
+  )
+  multipliers, shifts = zip(
+    *(
+      fc_s16_requant_params(input_scale, row_weight_scale[i], output_scale)
+      for i in range(out_dim)
+    )
+  )
 
   lines = [
-    f"// {prefix}: Linear({in_dim} -> {out_dim}), input_scale={input_scale:.8g}, "
-    f"weight_scale={weight_scale:.8g}, output_scale={output_scale:.8g}",
+    f"// {prefix}: Linear({in_dim} -> {out_dim}), per-output-channel "
+    f"quantization, input_scale={input_scale:.8g}, output_scale={output_scale:.8g}",
     _fmt_i8_array(f"{prefix}_WEIGHT", q_weight),
     _fmt_i64_array(f"{prefix}_BIAS", q_bias),
     f"pub const {prefix}_IN_DIM: usize = {in_dim};",
     f"pub const {prefix}_OUT_DIM: usize = {out_dim};",
-    f"pub const {prefix}_MULTIPLIER: i32 = {multiplier};",
-    f"pub const {prefix}_SHIFT: i32 = {shift};",
+    _fmt_i32_array(f"{prefix}_MULTIPLIER", np.array(multipliers)),
+    _fmt_i32_array(f"{prefix}_SHIFT", np.array(shifts)),
     "",
   ]
   return "\n".join(lines)
