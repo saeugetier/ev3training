@@ -39,9 +39,18 @@ def quantize_weight_s8(weight: np.ndarray, scale: float) -> np.ndarray:
 
 
 def quantize_bias_s64(bias: np.ndarray, input_scale: float, weight_scale: float) -> np.ndarray:
-  """Biases are quantized to int64 at `input_scale * weight_scale`,
-  matching `fully_connected_s16`'s `bias: Option<&[i64]>` parameter."""
-  bias_scale = input_scale * weight_scale
+  """Biases are quantized to int64, matching `fully_connected_s16`'s
+  `bias: Option<&[i64]>` parameter.
+
+  Verified against the installed crate (`fully_connected.rs`): bias is added
+  to the accumulator *before* its internal `acc >> 15` step, exactly like the
+  weight dot-product terms. `fc_s16_requant_params`'s multiplier already
+  compensates for that shift with an extra `*32768` factor on the dot
+  product; the bias needs the same `/32768` scale correction, or small (but
+  real) bias values get truncated to 0 by the `>>15` before requantization
+  ever sees them.
+  """
+  bias_scale = input_scale * weight_scale / 32768.0
   q = np.round(bias / bias_scale).astype(np.int64)
   return q
 
