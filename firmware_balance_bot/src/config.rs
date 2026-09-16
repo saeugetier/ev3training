@@ -38,7 +38,7 @@ pub const WHEEL_SPEED_RAD_S: f32 = 12.0;
 /// Matches `RemoteControlCommandCfg.max_pos_error` in `mdp.py` [rad].
 pub const MAX_POS_ERROR_RAD: f32 = 2.0;
 
-pub const MAX_TEST_DUTY: f32 = 0.3;
+pub const MAX_TEST_DUTY: f32 = 0.6;
 
 /// Map physical EV3 motor coordinates to the MuJoCo wheel-joint coordinates.
 /// The right motor is commonly mirrored mechanically.
