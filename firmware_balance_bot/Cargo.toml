@@ -16,6 +16,10 @@ path = "src/bin/policy_bench.rs"
 name = "policy_probe"
 path = "src/bin/policy_probe.rs"
 
+[[bin]]
+name = "gyro_bench"
+path = "src/bin/gyro_bench.rs"
+
 [lib]
 name = "ev3_balance_bot_firmware"
 path = "src/lib.rs"
