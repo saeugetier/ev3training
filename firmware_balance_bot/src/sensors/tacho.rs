@@ -12,11 +12,13 @@
 use ev3dev_lang_rust::motors::{LargeMotor, MotorPort};
 use ev3dev_lang_rust::Ev3Result;
 
-use crate::config::{LEFT_MOTOR_SIGN, RIGHT_MOTOR_SIGN, MAX_TEST_DUTY};
+use crate::config::{LEFT_MOTOR_SIGN, RIGHT_MOTOR_SIGN, LEFT_MOTOR_ACTOR_SCALE, RIGHT_MOTOR_ACTOR_SCALE, LEFT_MOTOR_OBS_SCALE, RIGHT_MOTOR_OBS_SCALE, MAX_TEST_DUTY};
 
 pub struct DriveMotor {
     motor: LargeMotor,
     sign: f32,
+    act_scale: f32,
+    obs_scale: f32,
 }
 
 impl DriveMotor {
@@ -29,23 +31,33 @@ impl DriveMotor {
             MotorPort::OutD => RIGHT_MOTOR_SIGN,
             _ => 1.0,
         };
-        Ok(Self { motor, sign })
+        let act_scale = match port {
+            MotorPort::OutA => LEFT_MOTOR_ACTOR_SCALE,
+            MotorPort::OutD => RIGHT_MOTOR_ACTOR_SCALE,
+            _ => 1.0,
+        };
+        let obs_scale = match port {
+            MotorPort::OutA => LEFT_MOTOR_OBS_SCALE,
+            MotorPort::OutD => RIGHT_MOTOR_OBS_SCALE,
+            _ => 1.0,
+        };
+        Ok(Self { motor, sign, act_scale, obs_scale })
     }
 
     /// Absolute wheel rotation [rad], matching the sim's `joint_pos`.
     pub fn position_rad(&self) -> Ev3Result<f32> {
-        Ok(self.sign * (self.motor.get_position()? as f32).to_radians())
+        Ok(self.sign *  self.obs_scale * (self.motor.get_position()? as f32).to_radians())
     }
 
     /// Measured wheel angular velocity [rad/s], matching the sim's `joint_vel`.
     pub fn speed_rad_s(&self) -> Ev3Result<f32> {
-        Ok(self.sign * (self.motor.get_speed()? as f32).to_radians())
+        Ok(self.sign * self.obs_scale * (self.motor.get_speed()? as f32).to_radians())
     }
 
     /// Command a normalized effort in `[-1, 1]`, mapped linearly to a
     /// `-100..100` duty cycle (the EV3's only motor control primitive).
     pub fn set_effort(&self, effort: f32) -> Ev3Result<()> {
-        let effort = effort.clamp(-MAX_TEST_DUTY, MAX_TEST_DUTY);
+        let effort = (effort * self.act_scale).clamp(-MAX_TEST_DUTY, MAX_TEST_DUTY);
         let duty = (self.sign * effort * 100.0).round() as i32;
         self.motor.set_duty_cycle_sp(duty)
     }
