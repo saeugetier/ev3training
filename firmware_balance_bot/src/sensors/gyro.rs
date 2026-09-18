@@ -20,7 +20,7 @@ pub struct Gyro {
 impl Gyro {
     pub fn find() -> Ev3Result<Self> {
         let sensor = GyroSensor::find()?;
-        sensor.set_mode_gyro_rate()?;
+        sensor.set_mode_gyro_ang()?;
         Ok(Self {
             sensor,
             angle_rad: 0.0,
@@ -30,11 +30,14 @@ impl Gyro {
 
     /// Read native rotational speed and integrate it to estimate tilt angle.
     pub fn sample(&mut self) -> Ev3Result<(f32, f32)> {
-        let rate_rad_s = (self.sensor.get_rotational_speed()? as f32).to_radians();
+        let current_angle_rad = (self.sensor.get_angle()? as f32).to_radians();
         let now = Instant::now();
         let dt = now.duration_since(self.last_sample).as_secs_f32();
-        self.angle_rad += rate_rad_s * dt.min(0.1);
-        self.angle_rad = (self.angle_rad + PI).rem_euclid(TWO_PI) - PI;
+        // Clamp the time step to avoid large jumps in the estimated angle.
+        let dt = dt.min(0.1);
+        let rate_rad_s = (current_angle_rad - self.angle_rad) / dt;
+ 
+        self.angle_rad = (current_angle_rad + PI).rem_euclid(TWO_PI) - PI;
         self.last_sample = now;
         Ok((self.angle_rad, rate_rad_s))
     }
