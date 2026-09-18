@@ -45,6 +45,12 @@ pub const MAX_TEST_DUTY: f32 = 1.0;
 pub const LEFT_MOTOR_SIGN: f32 = -1.0;
 pub const RIGHT_MOTOR_SIGN: f32 = -1.0;
 
+pub const LEFT_MOTOR_ACTOR_SCALE: f32 = 1.0;
+pub const RIGHT_MOTOR_ACTOR_SCALE: f32 = 1.0;
+
+pub const LEFT_MOTOR_OBS_SCALE: f32 = 1.0;
+pub const RIGHT_MOTOR_OBS_SCALE: f32 = 1.0;
+
 /// `ObservationTermCfg.scale` factors from `env_cfg.py`, applied to the raw
 /// sensor/command value before quantization.
 pub const GYRO_RATE_OBS_SCALE: f32 = 0.25;
