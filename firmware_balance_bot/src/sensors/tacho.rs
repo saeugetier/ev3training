@@ -26,7 +26,7 @@ impl DriveMotor {
         motor.run_direct()?;
         let sign = match port {
             MotorPort::OutA => LEFT_MOTOR_SIGN,
-            MotorPort::OutB => RIGHT_MOTOR_SIGN,
+            MotorPort::OutD => RIGHT_MOTOR_SIGN,
             _ => 1.0,
         };
         Ok(Self { motor, sign })
