@@ -27,11 +27,11 @@ fn main() -> Ev3Result<()> {
         error
     })?;
     let left_motor = DriveMotor::new(MotorPort::OutD).map_err(|error| {
-        eprintln!("left motor initialization failed on OutA: {error:?}");
+        eprintln!("left motor initialization failed on OutD: {error:?}");
         error
     })?;
     let right_motor = DriveMotor::new(MotorPort::OutA).map_err(|error| {
-        eprintln!("right motor initialization failed on OutB: {error:?}");
+        eprintln!("right motor initialization failed on OutA: {error:?}");
         error
     })?;
     let mut display = Display::new().map_err(|error| {
