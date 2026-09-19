@@ -34,7 +34,7 @@ impl Gyro {
     /// Read native rotational speed and integrate it to estimate tilt angle.
     pub fn sample(&mut self) -> Ev3Result<(f32, f32)> {
         let current_angle_rad = (self.sensor.get_angle()? as f32).to_radians() - self.calibration_angle_rad;
-        let current_angle_deg = (current_angle_rad + PI).rem_euclid(TWO_PI) - PI;
+        let current_angle_rad = (current_angle_rad + PI).rem_euclid(TWO_PI) - PI;
         let now = Instant::now();
         let dt = now.duration_since(self.last_sample).as_secs_f32();
         // Clamp the time step to avoid large jumps in the estimated angle.
