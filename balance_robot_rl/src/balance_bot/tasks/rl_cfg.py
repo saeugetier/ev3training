@@ -6,7 +6,7 @@ from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 def balance_bot_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
-      hidden_dims=(128, 128, 64),
+      hidden_dims=(64, 64, 32),
       activation="lrelu",
       obs_normalization=True,
       distribution_cfg={
