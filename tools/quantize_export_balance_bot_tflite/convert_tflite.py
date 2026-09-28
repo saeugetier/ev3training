@@ -38,27 +38,24 @@ def load_checkpoint(checkpoint: Path) -> BalanceBotPolicyRef:
     return model
 
 
-def detect_activation(model: BalanceBotPolicyRef) -> str:
+def detect_activation(model: BalanceBotPolicyRef) -> tuple[str, float]:
     """Detect the activation used by BalanceBotPolicyRef.act."""
     values = torch.tensor([[-2.0, -0.5, 0.0, 0.5, 2.0]])
 
     with torch.no_grad():
         result = model.act(values).detach().cpu().numpy()[0]
 
-    candidates = {
-        "tanh": np.tanh(values.numpy()[0]),
-        "relu": np.maximum(values.numpy()[0], 0.0),
-        "elu": np.where(
-            values.numpy()[0] > 0.0,
-            values.numpy()[0],
-            np.expm1(values.numpy()[0]),
-        ),
-        "linear": values.numpy()[0],
-    }
+    if np.allclose(result, np.where(values.numpy()[0] < 0, values.numpy()[0] * 0.01, values.numpy()[0])):
+        return "leaky_relu", 0.01
 
-    for name, expected in candidates.items():
-        if np.allclose(result, expected, atol=1e-6):
-            return name
+    if np.allclose(result, np.tanh(values.numpy()[0]), atol=1e-6):
+        return "tanh", 0.0
+
+    if np.allclose(result, np.maximum(values.numpy()[0], 0.0), atol=1e-6):
+        return "relu", 0.0
+
+    if np.allclose(result, values.numpy()[0], atol=1e-6):
+        return "linear", 0.0
 
     raise ValueError(
         "Unsupported activation in BalanceBotPolicyRef.act. "
@@ -67,7 +64,7 @@ def detect_activation(model: BalanceBotPolicyRef) -> str:
 
 
 def create_tf_model(model: BalanceBotPolicyRef) -> tf.keras.Model:
-    activation = detect_activation(model)
+    activation, alpha = detect_activation(model)
 
     inputs = tf.keras.Input(
         shape=(INPUT_DIM,),
@@ -78,25 +75,35 @@ def create_tf_model(model: BalanceBotPolicyRef) -> tf.keras.Model:
 
     x = inputs
 
-    for index, layer_name in enumerate(("fc1", "fc2", "fc3")):
+    for layer_name in ("fc1", "fc2", "fc3"):
         source_layer = getattr(model, layer_name)
-        dense = tf.keras.layers.Dense(
+
+        x = tf.keras.layers.Dense(
             int(source_layer.out_features),
             activation=None,
             name=layer_name,
-        )
-        x = dense(x)
+        )(x)
 
-        # Die letzte Schicht hat keine Aktivierung.
-        if index < 2:
-            x = tf.keras.layers.Activation(
-                activation,
+        # compare_policy.py aktiviert fc1, fc2 und fc3.
+        if activation == "leaky_relu":
+            x = tf.keras.layers.LeakyReLU(
+                negative_slope=alpha,
                 name=f"{layer_name}_activation",
             )(x)
+        elif activation == "relu":
+            x = tf.keras.layers.ReLU(
+                name=f"{layer_name}_activation",
+            )(x)
+        elif activation == "tanh":
+            x = tf.keras.layers.Activation(
+                "tanh",
+                name=f"{layer_name}_activation",
+            )(x)
+        elif activation != "linear":
+            raise ValueError(f"Unsupported TensorFlow activation: {activation}")
 
-    output_layer = model.fc_out
     output = tf.keras.layers.Dense(
-        int(output_layer.out_features),
+        int(model.fc_out.out_features),
         activation=None,
         name="action",
     )(x)
@@ -107,17 +114,27 @@ def create_tf_model(model: BalanceBotPolicyRef) -> tf.keras.Model:
         name="balance_bot_policy",
     )
 
-    # Modell explizit bauen, bevor die Gewichte gesetzt werden.
+    # Modell bauen, bevor die Gewichte gesetzt werden.
     tf_model(tf.zeros((1, INPUT_DIM), dtype=tf.float32))
 
-    for layer_name in ("fc1", "fc2", "fc3", "fc_out"):
+    for layer_name in ("fc1", "fc2", "fc3"):
         torch_layer = getattr(model, layer_name)
-        tf_layer = tf_model.get_layer(layer_name if layer_name != "fc_out" else "action")
+        tf_layer = tf_model.get_layer(layer_name)
 
-        weights = torch_layer.weight.detach().cpu().numpy().T
-        bias = torch_layer.bias.detach().cpu().numpy()
+        tf_layer.set_weights(
+            [
+                torch_layer.weight.detach().cpu().numpy().T.astype(np.float32),
+                torch_layer.bias.detach().cpu().numpy().astype(np.float32),
+            ]
+        )
 
-        tf_layer.set_weights([weights.astype(np.float32), bias.astype(np.float32)])
+    output_layer = tf_model.get_layer("action")
+    output_layer.set_weights(
+        [
+            model.fc_out.weight.detach().cpu().numpy().T.astype(np.float32),
+            model.fc_out.bias.detach().cpu().numpy().astype(np.float32),
+        ]
+    )
 
     tf_model.trainable = False
     return tf_model
