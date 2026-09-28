@@ -6,3 +6,4 @@ pub mod observation;
 pub mod policy;
 pub mod policy_weights;
 pub mod sensors;
+pub mod lqr;
